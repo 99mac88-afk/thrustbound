@@ -26,6 +26,8 @@ Thrustbound is a portrait iPhone game where you pilot a small rocket through 40 
 3. **Reactor Core**: timed lasers, spinners, patrolling mines, keys and doors.
 4. **Deep Void**: long levels that combine everything, ending with a 3,300-point climb.
 
+The game is available in **English and Russian**. It follows the iPhone's language automatically (Russian when the system language is Russian, English otherwise), and *Settings → Language* lets you force either one.
+
 Levels unlock one after another. You can turn on *Settings → Unlock all levels* if you want to jump around. There is also a left-handed option that swaps the stick and the GAS button.
 
 ## Install on your iPhone (sideload)
@@ -64,7 +66,7 @@ To cut a release: **Actions → iOS Build → Run workflow**, then enter a tag s
 
 ```
 Thrustbound/
-  App/            SwiftUI app entry, navigation and saved progress (AppModel)
+  App/            SwiftUI app entry, navigation, saved progress (AppModel) and translations (Localization.swift)
   Game/           Simulation (GameWorld), SpriteKit rendering (GameScene), controls, art
   UI/             Menus, level select, HUD and overlays, settings, how-to
   Services/       Sound effects and haptics

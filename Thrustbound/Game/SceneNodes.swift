@@ -239,6 +239,13 @@ final class ControlsNode: SKNode {
         setJoystickIdle()
     }
 
+    func setLabels(gas: String, steer: String) {
+        gasLabel.text = gas
+        joyLabel.text = steer
+        // keep long words inside the button
+        gasLabel.fontSize = gas.count > 4 ? 17 : 22
+    }
+
     func isJoystickZone(_ p: CGPoint) -> Bool {
         guard p.y < hudLimitY else { return false }
         return swapped ? p.x > 0 : p.x < 0

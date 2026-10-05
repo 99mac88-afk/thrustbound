@@ -209,6 +209,8 @@ def validate(lv):
                 errors.append(f"{kind} at {p} overlaps rock")
             if hazards is not None and hazards.distance(Point(p)) < 16:
                 errors.append(f"{kind} at {p} sits on a hazard")
+    if not lv.name_ru or not lv.hint_ru:
+        errors.append("missing Russian name or hint (tools/levels.py RUSSIAN)")
     if len(lv.stars) != 3:
         errors.append(f"expected 3 stars, found {len(lv.stars)}")
 

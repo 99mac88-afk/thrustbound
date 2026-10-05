@@ -9,7 +9,7 @@ struct LevelSelectView: View {
         ZStack {
             StarfieldBackground()
             VStack(spacing: 0) {
-                ScreenHeader(title: "Levels", trailing: "\(app.totalStars)/\(app.maxStars)") {
+                ScreenHeader(title: app.s.levelsTitle, trailing: "\(app.totalStars)/\(app.maxStars)") {
                     app.go(.menu)
                 }
                 ScrollViewReader { proxy in
@@ -42,14 +42,14 @@ struct LevelSelectView: View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .firstTextBaseline) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("WORLD \(world + 1)")
+                    Text(app.s.worldTag(world))
                         .font(UIStyle.font(12, .bold))
                         .tracking(2)
                         .foregroundColor(accent)
-                    Text(info?.name ?? "World \(world + 1)")
+                    Text(app.s.worldName(info, index: world))
                         .font(UIStyle.font(24))
                         .foregroundColor(.white)
-                    Text(info?.subtitle ?? "")
+                    Text(app.s.worldSubtitle(info))
                         .font(UIStyle.font(13, .medium))
                         .foregroundColor(Color.white.opacity(0.55))
                 }

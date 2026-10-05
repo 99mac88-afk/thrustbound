@@ -45,7 +45,8 @@ struct GameView: View {
             HUDView(session: session, hud: session.hud, accent: accent)
 
             if session.showIntro && session.phase == .playing {
-                IntroBanner(label: session.levelLabel, name: session.level.name, hint: session.level.hint, accent: accent)
+                IntroBanner(tag: session.s.levelTag(session.levelLabel), name: session.levelName,
+                            hint: session.levelHint, accent: accent)
                     .allowsHitTesting(false)
                     .transition(.opacity)
             }
@@ -90,11 +91,11 @@ struct HUDView: View {
             HStack(spacing: 12) {
                 IconButton(icon: "pause.fill", size: 42) { session.pause() }
                 VStack(alignment: .leading, spacing: 1) {
-                    Text("LEVEL \(session.levelLabel)")
+                    Text(session.s.levelTag(session.levelLabel))
                         .font(UIStyle.font(11, .bold))
                         .tracking(1.5)
                         .foregroundColor(accent)
-                    Text(session.level.name)
+                    Text(session.levelName)
                         .font(UIStyle.font(17))
                         .foregroundColor(.white)
                         .lineLimit(1)
@@ -106,10 +107,12 @@ struct HUDView: View {
             HStack(spacing: 10) {
                 FuelGauge(fraction: s.fuel)
                 SpeedGauge(ratio: s.speedRatio)
-                Text(UIStyle.time(s.elapsed))
+                Text(session.s.time(s.elapsed))
                     .font(UIStyle.font(14, .bold).monospacedDigit())
                     .foregroundColor(Color.white.opacity(0.85))
-                    .frame(width: 54, alignment: .trailing)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                    .frame(width: 62, alignment: .trailing)
             }
             HStack(spacing: 8) {
                 ForEach(Array(s.keys.enumerated()), id: \.offset) { _, color in
@@ -121,9 +124,9 @@ struct HUDView: View {
                 }
                 Spacer()
                 if s.tilted {
-                    StatusPill(text: "LEVEL OUT TO LAND", color: UIStyle.gold)
+                    StatusPill(text: session.s.levelOut, color: UIStyle.gold)
                 } else if s.landing > 0.02 {
-                    StatusPill(text: "TOUCHDOWN \(Int(s.landing * 100))%", color: UIStyle.green)
+                    StatusPill(text: session.s.touchdown(Int(s.landing * 100)), color: UIStyle.green)
                 }
             }
             .frame(minHeight: 28)
@@ -142,6 +145,8 @@ struct StatusPill: View {
         Text(text)
             .font(UIStyle.font(12, .heavy))
             .tracking(1)
+            .lineLimit(1)
+            .minimumScaleFactor(0.7)
             .foregroundColor(.black)
             .padding(.horizontal, 10)
             .padding(.vertical, 5)
@@ -211,14 +216,14 @@ struct SpeedGauge: View {
 }
 
 struct IntroBanner: View {
-    let label: String
+    let tag: String
     let name: String
     let hint: String
     let accent: Color
 
     var body: some View {
         VStack(spacing: 10) {
-            Text("LEVEL \(label)")
+            Text(tag)
                 .font(UIStyle.font(14, .bold))
                 .tracking(3)
                 .foregroundColor(accent)
@@ -226,6 +231,9 @@ struct IntroBanner: View {
                 .font(UIStyle.font(32, .black))
                 .foregroundColor(.white)
                 .multilineTextAlignment(.center)
+                .lineLimit(2)
+                .minimumScaleFactor(0.6)
+                .padding(.horizontal, 20)
                 .shadow(color: accent.opacity(0.8), radius: 12)
             Text(hint)
                 .font(UIStyle.font(15, .semibold))
@@ -285,28 +293,28 @@ struct PauseOverlay: View {
 
     var body: some View {
         OverlayCard(accent: accent) {
-            Text("PAUSED")
+            Text(session.s.paused)
                 .font(UIStyle.font(30, .black))
                 .foregroundColor(.white)
-            Text("Level \(session.levelLabel) · \(session.level.name)")
+            Text(session.s.levelLine(session.levelLabel, session.levelName))
                 .font(UIStyle.font(15, .semibold))
                 .foregroundColor(Color.white.opacity(0.7))
-            Text(session.level.hint)
+            Text(session.levelHint)
                 .font(UIStyle.font(14, .medium))
                 .foregroundColor(Color.white.opacity(0.6))
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
-            ActionButton(title: "RESUME", icon: "play.fill", kind: .primary, accent: accent) { session.resume() }
-            ActionButton(title: "RESTART", icon: "arrow.counterclockwise", accent: accent) { session.restart() }
+            ActionButton(title: session.s.resume, icon: "play.fill", kind: .primary, accent: accent) { session.resume() }
+            ActionButton(title: session.s.restart, icon: "arrow.counterclockwise", accent: accent) { session.restart() }
             HStack(spacing: 12) {
-                ActionButton(title: "LEVELS", icon: "square.grid.3x3.fill", accent: accent) { session.quitToLevels() }
-                ActionButton(title: "MENU", icon: "house.fill", accent: accent) { session.quitToMenu() }
+                ActionButton(title: session.s.levelsButton, icon: "square.grid.3x3.fill", accent: accent) { session.quitToLevels() }
+                ActionButton(title: session.s.menu, icon: "house.fill", accent: accent) { session.quitToMenu() }
             }
             HStack(spacing: 22) {
-                ToggleChip(icon: app.soundOn ? "speaker.wave.2.fill" : "speaker.slash.fill", label: "Sound", on: app.soundOn) {
+                ToggleChip(icon: app.soundOn ? "speaker.wave.2.fill" : "speaker.slash.fill", label: session.s.sound, on: app.soundOn) {
                     app.soundOn.toggle()
                 }
-                ToggleChip(icon: "iphone.radiowaves.left.and.right", label: "Haptics", on: app.hapticsOn) {
+                ToggleChip(icon: "iphone.radiowaves.left.and.right", label: session.s.haptics, on: app.hapticsOn) {
                     app.hapticsOn.toggle()
                 }
             }
@@ -342,48 +350,35 @@ struct FailOverlay: View {
     let accent: Color
     let outOfFuel: Bool
 
-    private static let crashTips = [
-        "Land slower: keep the speed meter out of the red.",
-        "Tap GAS in short bursts to hover in place.",
-        "Point the stick where you want the nose to go.",
-        "Anything red is deadly: spikes, mines, blades and lasers.",
-        "Lasers blink right before they switch on. Watch the rhythm.",
-        "Scraping a wall gently is fine. Hitting it hard is not.",
-        "Line up above the pad, then let gravity do the work."
-    ]
-    private static let fuelTips = [
-        "Grab orange fuel cans to top up your tank.",
-        "Short bursts of gas use less fuel than holding it down.",
-        "Take the most direct route. Fuel is tight here."
-    ]
-
     var body: some View {
         OverlayCard(accent: accent) {
             Image(systemName: outOfFuel ? "fuelpump.fill" : "flame.fill")
                 .font(.system(size: 34, weight: .bold))
                 .foregroundColor(outOfFuel ? UIStyle.orange : UIStyle.red)
                 .shadow(color: (outOfFuel ? UIStyle.orange : UIStyle.red).opacity(0.7), radius: 12)
-            Text(outOfFuel ? "OUT OF FUEL" : "CRASHED")
+            Text(outOfFuel ? session.s.outOfFuel : session.s.crashed)
                 .font(UIStyle.font(32, .black))
                 .foregroundColor(.white)
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
             Text(tip)
                 .font(UIStyle.font(15, .semibold))
                 .foregroundColor(Color.white.opacity(0.75))
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
-            Text("Attempt \(session.attempts)")
+            Text(session.s.attempt(session.attempts))
                 .font(UIStyle.font(12, .bold))
                 .foregroundColor(Color.white.opacity(0.4))
-            ActionButton(title: "TRY AGAIN", icon: "arrow.counterclockwise", kind: .primary, accent: accent) { session.restart() }
+            ActionButton(title: session.s.tryAgain, icon: "arrow.counterclockwise", kind: .primary, accent: accent) { session.restart() }
             HStack(spacing: 12) {
-                ActionButton(title: "LEVELS", icon: "square.grid.3x3.fill", accent: accent) { session.quitToLevels() }
-                ActionButton(title: "MENU", icon: "house.fill", accent: accent) { session.quitToMenu() }
+                ActionButton(title: session.s.levelsButton, icon: "square.grid.3x3.fill", accent: accent) { session.quitToLevels() }
+                ActionButton(title: session.s.menu, icon: "house.fill", accent: accent) { session.quitToMenu() }
             }
         }
     }
 
     private var tip: String {
-        let tips = outOfFuel ? Self.fuelTips : Self.crashTips
+        let tips = outOfFuel ? session.s.fuelTips : session.s.crashTips
         return tips[(session.attempts - 1 + session.levelIndex) % tips.count]
     }
 }
@@ -396,9 +391,11 @@ struct WinOverlay: View {
 
     var body: some View {
         OverlayCard(accent: accent) {
-            Text(result.stars == 3 ? "PERFECT!" : "LANDED!")
+            Text(result.stars == 3 ? session.s.perfect : session.s.landed)
                 .font(UIStyle.font(34, .black))
                 .foregroundColor(.white)
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
                 .shadow(color: UIStyle.green.opacity(0.8), radius: 14)
             HStack(spacing: 14) {
                 ForEach(0..<3, id: \.self) { i in
@@ -415,30 +412,30 @@ struct WinOverlay: View {
             .padding(.vertical, 4)
 
             VStack(spacing: 8) {
-                statRow(icon: "timer", label: "Time", value: UIStyle.time(result.time),
-                        badge: result.update.newBestTime ? "NEW BEST" : nil)
-                statRow(icon: "flag.fill", label: "Par", value: "\(Int(result.par))s",
-                        badge: result.underPar ? "UNDER PAR" : nil)
-                statRow(icon: "fuelpump.fill", label: "Fuel left", value: "\(Int((result.fuelLeft * 100).rounded()))%", badge: nil)
+                statRow(icon: "timer", label: session.s.timeLabel, value: session.s.time(result.time),
+                        badge: result.update.newBestTime ? session.s.newBest : nil)
+                statRow(icon: "flag.fill", label: session.s.parLabel, value: session.s.wholeSeconds(result.par),
+                        badge: result.underPar ? session.s.underPar : nil)
+                statRow(icon: "fuelpump.fill", label: session.s.fuelLeft, value: "\(Int((result.fuelLeft * 100).rounded()))%", badge: nil)
             }
             .padding(14)
             .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(Color.white.opacity(0.06)))
 
             if !session.hasNextLevel {
-                Text("You conquered every level. Legendary flying, pilot!")
+                Text(session.s.allDone)
                     .font(UIStyle.font(15, .bold))
                     .foregroundColor(UIStyle.gold)
                     .multilineTextAlignment(.center)
             }
 
             if session.hasNextLevel {
-                ActionButton(title: "NEXT LEVEL", icon: "play.fill", kind: .primary, accent: accent) { session.nextLevel() }
+                ActionButton(title: session.s.nextLevel, icon: "play.fill", kind: .primary, accent: accent) { session.nextLevel() }
             } else {
-                ActionButton(title: "MAIN MENU", icon: "house.fill", kind: .primary, accent: accent) { session.quitToMenu() }
+                ActionButton(title: session.s.mainMenu, icon: "house.fill", kind: .primary, accent: accent) { session.quitToMenu() }
             }
             HStack(spacing: 12) {
-                ActionButton(title: "RETRY", icon: "arrow.counterclockwise", accent: accent) { session.restart() }
-                ActionButton(title: "LEVELS", icon: "square.grid.3x3.fill", accent: accent) { session.quitToLevels() }
+                ActionButton(title: session.s.retry, icon: "arrow.counterclockwise", accent: accent) { session.restart() }
+                ActionButton(title: session.s.levelsButton, icon: "square.grid.3x3.fill", accent: accent) { session.quitToLevels() }
             }
         }
         .onAppear { shown = true }
@@ -453,10 +450,14 @@ struct WinOverlay: View {
             Text(label)
                 .font(UIStyle.font(15, .semibold))
                 .foregroundColor(Color.white.opacity(0.7))
-            Spacer()
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+            Spacer(minLength: 4)
             if let badge = badge {
                 Text(badge)
                     .font(UIStyle.font(10, .heavy))
+                    .lineLimit(1)
+                    .fixedSize()
                     .foregroundColor(.black)
                     .padding(.horizontal, 6)
                     .padding(.vertical, 3)

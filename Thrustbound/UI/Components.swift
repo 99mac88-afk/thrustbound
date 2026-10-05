@@ -24,9 +24,6 @@ enum UIStyle {
         Color(hex: world?.neon ?? "#3BE3FF")
     }
 
-    static func time(_ t: Double) -> String {
-        String(format: "%.1fs", max(0, t))
-    }
 }
 
 /// Slowly drifting star field used behind the menus.
@@ -151,8 +148,12 @@ struct ActionButton: View {
                 if let icon = icon {
                     Image(systemName: icon).font(.system(size: 17, weight: .bold))
                 }
-                Text(title).font(UIStyle.font(18))
+                Text(title)
+                    .font(UIStyle.font(18))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.6)
             }
+            .padding(.horizontal, 10)
             .foregroundColor(kind == .primary ? Color.black.opacity(0.85) : .white)
             .frame(maxWidth: .infinity)
             .frame(height: height)
@@ -205,6 +206,8 @@ struct ScreenHeader: View {
             Text(title)
                 .font(UIStyle.font(24))
                 .foregroundColor(.white)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
             Spacer()
             if let trailing = trailing {
                 HStack(spacing: 5) {

@@ -7,6 +7,8 @@ import Foundation
 struct WorldInfo: Decodable {
     let name: String
     let subtitle: String
+    let nameRu: String?
+    let subtitleRu: String?
     let neon: String
     let rock: String
     let bgTop: String
@@ -62,6 +64,8 @@ struct LevelData {
     let world: Int
     let name: String
     let hint: String
+    let nameRu: String?
+    let hintRu: String?
     let width: CGFloat
     let height: CGFloat
     let fuel: Double
@@ -161,6 +165,8 @@ private struct RawLevel: Decodable {
     let world: Int
     let name: String
     let hint: String
+    let nameRu: String?
+    let hintRu: String?
     let size: [CGFloat]
     let fuel: Double
     let par: Double
@@ -183,6 +189,8 @@ private struct RawLevel: Decodable {
             world: world,
             name: name,
             hint: hint,
+            nameRu: nameRu,
+            hintRu: hintRu,
             width: size.count > 0 ? size[0] : 420,
             height: size.count > 1 ? size[1] : 1000,
             fuel: fuel,

@@ -63,6 +63,10 @@ final class GameScene: SKScene {
         }
     }
     var demoMode = false
+    /// Text for labels drawn inside the scene.
+    var strings = L10n(.en) {
+        didSet { controls.setLabels(gas: strings.gas, steer: strings.steer) }
+    }
 
     var canPause: Bool { !finished && world?.status == .flying }
 
@@ -275,11 +279,15 @@ final class GameScene: SKScene {
             }
             if isGoal {
                 let label = SKLabelNode(fontNamed: "AvenirNext-Heavy")
-                label.text = "LAND"
+                label.text = strings.land
                 label.fontSize = 8
                 label.fontColor = UIColor.white.withAlphaComponent(0.85)
                 label.verticalAlignmentMode = .center
                 label.position = CGPoint(x: 0, y: -6.5)
+                let room = pad.width - 22
+                if label.frame.width > room, label.frame.width > 0 {
+                    label.setScale(room / label.frame.width)
+                }
                 label.zPosition = 3
                 node.addChild(label)
             }
@@ -653,7 +661,7 @@ final class GameScene: SKScene {
                 Haptics.light()
             case .fuelCan(let i):
                 collect(canNodes, i, color: Palette.fuel)
-                popup("+FUEL", at: canNodes.indices.contains(i) ? canNodes[i].position : rocket.position, color: Palette.fuel)
+                popup(strings.plusFuel, at: canNodes.indices.contains(i) ? canNodes[i].position : rocket.position, color: Palette.fuel)
                 SoundManager.shared.play(.fuel)
                 Haptics.light()
             case .key(let i):
@@ -678,7 +686,7 @@ final class GameScene: SKScene {
                 Haptics.impact(CGFloat(v))
             case .lowFuel:
                 SoundManager.shared.play(.lowFuel, volume: 0.7)
-                popup("LOW FUEL", at: rocket.position + CGPoint(x: 0, y: 34), color: Palette.hazard)
+                popup(strings.lowFuel, at: rocket.position + CGPoint(x: 0, y: 34), color: Palette.hazard)
             }
         }
     }

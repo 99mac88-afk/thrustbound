@@ -123,6 +123,13 @@ jobs:
           for L in 01 07 13 17 23 28 30 33 39 40; do
             shoot "20-level$L-demo" 5 -screenshot "game:$((10#$L)):demo"
           done
+          shoot 40-ru-menu 5 -lang ru
+          shoot 41-ru-levels 4 -lang ru -screenshot levels
+          shoot 42-ru-howto 4 -lang ru -screenshot howto
+          shoot 43-ru-settings 3 -lang ru -screenshot settings
+          shoot 44-ru-level01-intro 3 -lang ru -screenshot game:1
+          shoot 45-ru-level17-demo 6 -lang ru -screenshot game:17:demo
+          shoot 46-ru-level26-demo 5 -lang ru -screenshot game:26:demo
           xcrun simctl terminate "$UDID" "$BUNDLE_ID" 2>/dev/null || true
           ls -la shots
           cd shots

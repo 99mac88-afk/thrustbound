@@ -23,7 +23,7 @@ struct RootView: View {
             if app.levels.isEmpty {
                 VStack(spacing: 12) {
                     Image(systemName: "exclamationmark.triangle.fill").font(.system(size: 40)).foregroundColor(UIStyle.gold)
-                    Text("Levels could not be loaded.").font(UIStyle.font(18, .bold)).foregroundColor(.white)
+                    Text(app.s.levelsFailed).font(UIStyle.font(18, .bold)).foregroundColor(.white)
                 }
             } else {
                 switch app.screen {

@@ -41,6 +41,10 @@ final class GameSession: ObservableObject {
     private var loadToken = 0
 
     var level: LevelData { app.levels[levelIndex] }
+    /// Text in the player's language.
+    var s: L10n { app.s }
+    var levelName: String { s.name(level) }
+    var levelHint: String { s.hint(level) }
     var worldInfo: WorldInfo? { app.world(for: level) }
     var hasNextLevel: Bool { levelIndex + 1 < app.levels.count }
     var levelLabel: String {
@@ -67,6 +71,7 @@ final class GameSession: ObservableObject {
         showIntro = true
         hud.state = HUDState()
         scene.swapControls = app.swapControls
+        scene.strings = app.s
         scene.load(level: level, world: worldInfo)
         let token = loadToken
         Task { [weak self] in

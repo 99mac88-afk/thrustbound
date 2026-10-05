@@ -206,11 +206,67 @@ final class ThrustboundTests: XCTestCase {
         XCTAssertEqual(world.position, CGPoint(x: level.start.x, y: level.start.y + RocketShape.spawnHeight))
     }
 
+    // MARK: - Localization
+
+    func testSystemLanguageDetection() {
+        XCTAssertEqual(Lang.detect(from: ["ru-RU", "en-US"]), .ru)
+        XCTAssertEqual(Lang.detect(from: ["ru"]), .ru)
+        XCTAssertEqual(Lang.detect(from: ["en-GB", "ru-RU"]), .en)
+        XCTAssertEqual(Lang.detect(from: ["de-DE"]), .en)
+        XCTAssertEqual(Lang.detect(from: []), .en)
+        XCTAssertEqual(Lang.resolve(.system, preferred: ["ru-KZ"]), .ru)
+        XCTAssertEqual(Lang.resolve(.english, preferred: ["ru-RU"]), .en)
+        XCTAssertEqual(Lang.resolve(.russian, preferred: ["en-US"]), .ru)
+    }
+
+    func testEveryLevelAndWorldHasRussianText() {
+        let ru = L10n(.ru)
+        let en = L10n(.en)
+        for level in levels {
+            XCTAssertFalse((level.nameRu ?? "").isEmpty, "\(level.name): missing Russian name")
+            XCTAssertFalse((level.hintRu ?? "").isEmpty, "\(level.name): missing Russian hint")
+            XCTAssertEqual(ru.name(level), level.nameRu)
+            XCTAssertEqual(en.name(level), level.name)
+            XCTAssertEqual(ru.hint(level), level.hintRu)
+        }
+        for (i, world) in Self.library.worlds.enumerated() {
+            XCTAssertFalse((world.nameRu ?? "").isEmpty)
+            XCTAssertFalse((world.subtitleRu ?? "").isEmpty)
+            XCTAssertNotEqual(ru.worldName(world, index: i), en.worldName(world, index: i))
+        }
+    }
+
+    func testTranslationsCoverTheSameContent() {
+        let ru = L10n(.ru)
+        let en = L10n(.en)
+        XCTAssertEqual(ru.tips.count, en.tips.count)
+        XCTAssertEqual(ru.tips.map { $0.icon }, en.tips.map { $0.icon })
+        XCTAssertEqual(ru.crashTips.count, en.crashTips.count)
+        XCTAssertEqual(ru.fuelTips.count, en.fuelTips.count)
+        XCTAssertEqual(en.gas, "GAS")
+        XCTAssertEqual(ru.gas, "ГАЗ")
+        XCTAssertEqual(ru.time(12.34), "12,3 с")
+        XCTAssertEqual(en.time(12.34), "12.3s")
+    }
+
+    func testRussianPlurals() {
+        XCTAssertEqual(L10n(.ru).levelCount(1), "1 уровень")
+        XCTAssertEqual(L10n(.ru).levelCount(3), "3 уровня")
+        XCTAssertEqual(L10n(.ru).levelCount(11), "11 уровней")
+        XCTAssertEqual(L10n(.ru).levelCount(22), "22 уровня")
+        XCTAssertEqual(L10n(.ru).levelCount(40), "40 уровней")
+        XCTAssertEqual(L10n(.en).levelCount(40), "40 levels")
+    }
+
     func testLaunchOptionsParsing() {
         let o = LaunchOptions.parse(["app", "-screenshot", "game:12:demo"])
         XCTAssertEqual(o.screen, "game")
         XCTAssertEqual(o.level, 12)
         XCTAssertTrue(o.demo)
         XCTAssertNil(LaunchOptions.parse(["app"]).screen)
+        let ru = LaunchOptions.parse(["app", "-lang", "ru", "-screenshot", "levels"])
+        XCTAssertEqual(ru.lang, .ru)
+        XCTAssertEqual(ru.screen, "levels")
+        XCTAssertNil(LaunchOptions.parse(["app", "-lang", "xx"]).lang)
     }
 }

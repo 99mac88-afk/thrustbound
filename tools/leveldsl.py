@@ -83,6 +83,8 @@ class Level:
         self.par = par
         self.world = 0
         self.index = 0
+        self.name_ru = None
+        self.hint_ru = None
         self._carves = []
         self._solids = []
         self.start_pad = None
@@ -359,6 +361,8 @@ def level_to_json(lv, level_id, fuel):
         "world": lv.world,
         "name": lv.name,
         "hint": lv.hint,
+        "nameRu": lv.name_ru,
+        "hintRu": lv.hint_ru,
         "size": [lv.w, lv.h],
         "fuel": _r(fuel),
         "par": _r(lv.par),

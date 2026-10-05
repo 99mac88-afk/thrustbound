@@ -30,7 +30,7 @@ struct MainMenuView: View {
                         .shadow(color: UIStyle.cyan.opacity(0.6), radius: 24)
                         .lineLimit(1)
                         .minimumScaleFactor(0.6)
-                    Text("Defy gravity. Stick the landing.")
+                    Text(app.s.tagline)
                         .font(UIStyle.font(16, .semibold))
                         .foregroundColor(Color.white.opacity(0.7))
                         .padding(.top, 6)
@@ -39,23 +39,23 @@ struct MainMenuView: View {
 
                     VStack(spacing: 14) {
                         let next = app.continueIndex
-                        ActionButton(title: app.hasProgress ? "CONTINUE" : "PLAY", icon: "play.fill", kind: .primary, height: 62) {
+                        ActionButton(title: app.hasProgress ? app.s.continueGame : app.s.play, icon: "play.fill", kind: .primary, height: 62) {
                             app.go(.game(next))
                         }
                         if app.levels.indices.contains(next) {
-                            Text("Level \(levelLabel(next)) · \(app.levels[next].name)")
+                            Text(app.s.levelLine(levelLabel(next), app.s.name(app.levels[next])))
                                 .font(UIStyle.font(13, .semibold))
                                 .foregroundColor(Color.white.opacity(0.6))
                                 .padding(.top, -6)
                         }
-                        ActionButton(title: "LEVELS", icon: "square.grid.3x3.fill") {
+                        ActionButton(title: app.s.levelsButton, icon: "square.grid.3x3.fill") {
                             app.go(.levels)
                         }
                         HStack(spacing: 14) {
-                            ActionButton(title: "HOW TO", icon: "questionmark.circle.fill") {
+                            ActionButton(title: app.s.howToButton, icon: "questionmark.circle.fill") {
                                 app.go(.howTo)
                             }
-                            ActionButton(title: "SETTINGS", icon: "gearshape.fill") {
+                            ActionButton(title: app.s.settingsButton, icon: "gearshape.fill") {
                                 app.go(.settings)
                             }
                         }

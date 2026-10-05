@@ -2,6 +2,8 @@
 
 Fly a tiny rocket through 40 hand-built levels. Gravity always pulls you down: steer with the stick on the left, burn fuel with the **GAS** button on the right, and touch down gently on the green pad.
 
+**New in 1.1:** full Russian translation. The game picks English or Russian from your iPhone's language automatically, and you can change it in **Settings → Language**.
+
 ### Install (sideload)
 This IPA is **unsigned**. A sideloading tool signs it with your Apple ID when it installs it:
 
@@ -17,4 +19,17 @@ With a free Apple ID the app has to be refreshed every 7 days (AltStore and Side
 - 40 levels across 4 worlds: Launch Bay, Crystal Caverns, Reactor Core and Deep Void
 - Spikes, wind, lasers, spinning blades, mines, keys and doors
 - 3 stars to collect in every level, plus best times and par times
-- Left-handed control option, sound effects and haptics
+- English and Russian, left-handed controls, sound effects and haptics
+
+---
+
+## Thrustbound 🚀 (по-русски)
+
+Управляй маленькой ракетой на 40 уровнях. Гравитация всегда тянет вниз: поворачивай джойстиком слева, жми **ГАЗ** справа и мягко садись на зелёную площадку.
+
+**Новое в 1.1:** полный перевод на русский язык. Игра сама выбирает русский или английский по языку iPhone, а сменить язык можно в **Настройки → Язык**.
+
+### Установка
+IPA **не подписан** — его подпишет программа для установки с твоим Apple ID: **Sideloadly**, **AltStore / SideStore** или **TrollStore**. С бесплатным Apple ID приложение нужно обновлять раз в 7 дней. На iOS 16 и новее при первом запуске включи **Настройки → Конфиденциальность и безопасность → Режим разработчика**.
+
+**Требования:** iPhone с iOS 15 или новее.

@@ -17,9 +17,13 @@ struct LaunchOptions {
     var screen: String?
     var level: Int?
     var demo = false
+    var lang: Lang?
 
     static func parse(_ args: [String]) -> LaunchOptions {
         var options = LaunchOptions()
+        if let i = args.firstIndex(of: "-lang"), i + 1 < args.count {
+            options.lang = Lang(rawValue: args[i + 1].lowercased())
+        }
         guard let i = args.firstIndex(of: "-screenshot"), i + 1 < args.count else { return options }
         let parts = args[i + 1].split(separator: ":").map(String.init)
         options.screen = parts.first
@@ -59,6 +63,15 @@ final class AppModel: ObservableObject {
     @Published var unlockAll: Bool {
         didSet { defaults.set(unlockAll, forKey: Keys.unlockAll) }
     }
+    /// Language picked in Settings; `.system` follows the iPhone's language.
+    @Published var language: AppLanguage {
+        didSet { defaults.set(language.rawValue, forKey: Keys.language) }
+    }
+
+    /// The language the game is shown in right now.
+    var lang: Lang { launch.lang ?? Lang.resolve(language) }
+    /// All visible text in the current language.
+    var s: L10n { L10n(lang) }
 
     let library: LevelLibrary
     let launch: LaunchOptions
@@ -75,18 +88,21 @@ final class AppModel: ObservableObject {
         static let haptics = "hapticsOn"
         static let swap = "swapControls"
         static let unlockAll = "unlockAll"
+        static let language = "language"
         static let records = "levelRecords.v1"
     }
 
     init() {
         let ud = UserDefaults.standard
-        ud.register(defaults: [Keys.sound: true, Keys.haptics: true, Keys.swap: false, Keys.unlockAll: false])
+        ud.register(defaults: [Keys.sound: true, Keys.haptics: true, Keys.swap: false, Keys.unlockAll: false,
+                               Keys.language: AppLanguage.system.rawValue])
         library = LevelLibrary.load()
         launch = LaunchOptions.parse(ProcessInfo.processInfo.arguments)
         _soundOn = Published(initialValue: ud.bool(forKey: Keys.sound))
         _hapticsOn = Published(initialValue: ud.bool(forKey: Keys.haptics))
         _swapControls = Published(initialValue: ud.bool(forKey: Keys.swap))
         _unlockAll = Published(initialValue: ud.bool(forKey: Keys.unlockAll))
+        _language = Published(initialValue: AppLanguage(rawValue: ud.string(forKey: Keys.language) ?? "") ?? .system)
         if let data = ud.data(forKey: Keys.records),
            let decoded = try? JSONDecoder().decode([String: LevelRecord].self, from: data) {
             var map: [Int: LevelRecord] = [:]
