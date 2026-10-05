@@ -68,7 +68,7 @@ def jag(geom, amp, step, rng):
 
 class Level:
     def __init__(self, name, w=420, h=1000, hint="", base="open", jag=0.0,
-                 jag_step=26, fuel=None, fuel_margin=1.8, par=None):
+                 jag_step=26, fuel=None, fuel_margin=1.8, par=None, fuel_ratio=0.6):
         self.name = name
         self.w = w
         self.h = h
@@ -78,6 +78,8 @@ class Level:
         self.jag_step = jag_step
         self.fuel = fuel
         self.fuel_margin = fuel_margin
+        # the autopilot may use at most this share of the tank
+        self.fuel_ratio = fuel_ratio
         self.par = par
         self.world = 0
         self.index = 0

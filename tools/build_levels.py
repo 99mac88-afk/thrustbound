@@ -11,8 +11,14 @@ every level:
   * fuel is computed from the shortest route so every level is finishable.
 
 Usage:
+  * the autopilot (tools/autopilot.py) can fly the whole level, collecting
+    every star, on the fuel the level gives; tanks are sized so the
+    autopilot needs at most `fuel_ratio` of them.
+
+Usage:
   python3 tools/build_levels.py            # build + validate
   python3 tools/build_levels.py --render DIR   # also write PNG previews
+  python3 tools/build_levels.py --fast         # skip the autopilot flights
 """
 
 import itertools
@@ -28,6 +34,7 @@ from shapely.geometry import LineString, Point, Polygon, box
 from shapely.ops import unary_union
 
 sys.path.insert(0, os.path.dirname(__file__))
+import autopilot  # noqa: E402
 import leveldsl  # noqa: E402
 from levels import WORLDS, build_all  # noqa: E402
 
@@ -356,12 +363,16 @@ def main():
             errors, info = [str(e)], {}
         fuel = compute_fuel(lv, info)
         data = level_to_json_with_par(lv, level_id, fuel, info)
+        flown = ""
+        if not errors and "--fast" not in sys.argv:
+            errors += fly_and_tune(lv, data, info)
+            flown = (f" auto {info.get('auto_used', 0):4.1f}s fuel in {info.get('auto_time', 0):5.1f}s")
         out_levels.append(data)
         status = "OK " if not errors else "ERR"
         rc = info.get("route_clear")
-        print(f"{status} {level_id:2d} {lv.name:<22} w{lv.world} fuel {fuel:5.1f}s "
-              f"need~{info.get('fuel_needed') or 0:5.1f}s route {info.get('route_len') or 0:6.0f}pt "
-              f"gap {2 * rc if rc else 0:4.0f}pt par {data['par']:.0f}s")
+        print(f"{status} {level_id:2d} {lv.name:<22} w{lv.world} fuel {data['fuel']:5.1f}s "
+              f"route {info.get('route_len') or 0:6.0f}pt gap {2 * rc if rc else 0:4.0f}pt "
+              f"par {data['par']:.0f}s{flown}")
         for e in errors:
             print(f"      - {e}")
         if errors:
@@ -379,7 +390,30 @@ def main():
         sys.exit(1)
 
 
+def fly_and_tune(lv, data, info):
+    """Fly the level with unlimited fuel to measure what a clean run needs,
+    size the tank from that, then fly again on the real tank."""
+    errors = []
+    measure = autopilot.fly(data, unlimited_fuel=True)
+    if not measure["ok"]:
+        return [f"autopilot could not finish: {measure.get('status')} {measure.get('why')}"]
+    info["auto_used"] = measure["used"]
+    info["auto_time"] = measure["time"]
+    if lv.fuel is None:
+        needed = math.ceil(measure["used"] / lv.fuel_ratio)
+        data["fuel"] = float(max(data["fuel"], needed))
+    if lv.par_explicit is None:
+        data["par"] = float(max(10, int(math.ceil(measure["time"] * 0.85 / 5.0) * 5)))
+    check = autopilot.fly(data)
+    if not check["ok"]:
+        errors.append(f"autopilot ran out of fuel or crashed on the real tank: {check.get('status')} {check.get('why')}")
+    elif check["stars"] < len(data["stars"]):
+        errors.append("autopilot could not collect every star")
+    return errors
+
+
 def level_to_json_with_par(lv, level_id, fuel, info):
+    lv.par_explicit = getattr(lv, "par_explicit", lv.par)
     if lv.par is None:
         route = info.get("route_len") or 800
         lv.par = max(10, int(math.ceil((route / 90.0 + 5) / 5.0) * 5))

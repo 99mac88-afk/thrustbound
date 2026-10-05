@@ -271,12 +271,12 @@ def crystal_caverns():
     lv.start(90, 20)
     lv.wind(200, 20, 160, 760, 0, 230)
     lv.spikes(200, 780, 160, "down")
-    lv.wind(460, 20, 160, 760, 0, -230)
+    lv.wind(460, 20, 160, 760, 0, -150)
     lv.spikes(460, 20, 160, "up")
     lv.wind(720, 20, 160, 760, 0, 230)
     lv.spikes(720, 780, 160, "down")
     lv.goal(1000, 20)
-    lv.star(280, 600).star(540, 200).star(800, 420)
+    lv.star(280, 480).star(540, 420).star(800, 420)
     lv.fuel_margin = 2.0
     L.append(lv)
 
@@ -675,7 +675,7 @@ def deep_void():
     lv.fuel_margin = 2.0
     L.append(lv)
 
-    lv = Level("Tight Squeeze", h=2200, base="cave", jag=3, fuel_margin=1.45,
+    lv = Level("Tight Squeeze", h=2200, base="cave", jag=3, fuel_margin=1.45, fuel_ratio=0.75,
                hint="Tight tunnels and a small tank. Precision is everything.")
     lv.carve_rect(20, 20, 380, 180)
     lv.tunnel([(210, 150), (120, 400), (300, 700), (120, 1000), (300, 1300),

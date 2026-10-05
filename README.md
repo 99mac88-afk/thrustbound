@@ -76,7 +76,7 @@ tools/            Level editor DSL, validator, icon and sound generators (Python
 
 ### Level design tools
 
-The levels are written in Python in [`tools/levels.py`](tools/levels.py) using a small DSL (rooms, tunnels, rocks, pads, hazards). The build script turns them into `Thrustbound/Resources/levels.json` and checks every level. It verifies that the pads sit on solid ground, and runs a flood fill sized to the rocket to confirm that the goal, every star, fuel can and key can be reached, with doors only opening once their key is collected. It also sets each level's fuel from its shortest route.
+The levels are written in Python in [`tools/levels.py`](tools/levels.py) using a small DSL (rooms, tunnels, rocks, pads, hazards). The build script turns them into `Thrustbound/Resources/levels.json` and checks every level. It verifies that the pads sit on solid ground, and runs a flood fill sized to the rocket to confirm that the goal, every star, fuel can and key can be reached, with doors only opening once their key is collected. Finally, an autopilot ([`tools/autopilot.py`](tools/autopilot.py)) flies every level using a Python copy of the game's physics. It collects all three stars and lands, and each tank is sized so the autopilot needs at most about 60% of it.
 
 ```sh
 pip install numpy scipy shapely pillow
