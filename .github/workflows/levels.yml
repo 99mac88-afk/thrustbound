@@ -1,0 +1,17 @@
+name: Level Check
+
+on:
+  push:
+    paths:
+      - "tools/**"
+      - "Thrustbound/Resources/levels.json"
+      - ".github/workflows/levels.yml"
+  workflow_dispatch:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Placeholder
+        run: echo "Level validation will run here."
