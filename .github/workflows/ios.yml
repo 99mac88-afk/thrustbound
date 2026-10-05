@@ -1,0 +1,206 @@
+name: iOS Build
+
+on:
+  push:
+    branches: ["**"]
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Publish a GitHub Release with this tag (for example v1.0.0). Leave empty to only build."
+        required: false
+        default: ""
+      screenshots:
+        description: "Capture simulator screenshots"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Test, build and package
+    # Screenshot commits pushed by this workflow don't need a build.
+    if: github.ref != 'refs/heads/ci-shots'
+    runs-on: macos-15
+    timeout-minutes: 50
+    env:
+      PROJECT: Thrustbound.xcodeproj
+      SCHEME: Thrustbound
+      BUNDLE_ID: com.thrustbound.game
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Toolchain
+        run: |
+          xcodebuild -version
+          swift --version
+          xcrun simctl list runtimes
+
+      - name: Install XcodeGen
+        run: |
+          set -euo pipefail
+          if ! command -v xcodegen >/dev/null 2>&1; then
+            if curl -fsSL -o /tmp/xcodegen.zip https://github.com/yonaskolb/XcodeGen/releases/latest/download/xcodegen.zip; then
+              unzip -q -o /tmp/xcodegen.zip -d /tmp/xcodegen
+              XG=$(find /tmp/xcodegen -type f -name xcodegen -perm -u+x | head -n 1)
+              echo "$(dirname "$XG")" >> "$GITHUB_PATH"
+            else
+              brew install xcodegen
+            fi
+          fi
+
+      - name: Generate Xcode project
+        run: |
+          xcodegen --version
+          xcodegen generate
+
+      - name: Pick simulator
+        id: sim
+        run: |
+          set -euo pipefail
+          UDID=$(xcrun simctl list devices available -j | python3 -c '
+          import json, sys
+          devices = json.load(sys.stdin)["devices"]
+          best = None
+          for runtime, items in devices.items():
+              if "iOS" not in runtime:
+                  continue
+              version = tuple(int(p) for p in runtime.split("iOS-")[-1].split("-") if p.isdigit())
+              for d in items:
+                  if d.get("isAvailable", True) and d["name"].startswith("iPhone"):
+                      key = (version, "Pro" in d["name"] and "Max" not in d["name"], d["name"])
+                      if best is None or key > best[0]:
+                          best = (key, d["udid"], d["name"])
+          print(best[1])
+          print(best[2] + " " + ".".join(map(str, best[0][0])), file=sys.stderr)
+          ')
+          echo "udid=$UDID" >> "$GITHUB_OUTPUT"
+
+      - name: Unit tests (simulator)
+        run: |
+          set -o pipefail
+          mkdir -p build
+          FMT=cat
+          if command -v xcbeautify >/dev/null 2>&1; then FMT="xcbeautify --renderer github-actions"; fi
+          xcodebuild test \
+            -project "$PROJECT" -scheme "$SCHEME" \
+            -destination "id=${{ steps.sim.outputs.udid }}" \
+            -derivedDataPath build/sim \
+            CODE_SIGNING_ALLOWED=NO \
+            | tee build/test.log | $FMT
+
+      - name: Screenshots
+        if: (github.event_name == 'workflow_dispatch' && inputs.screenshots) || startsWith(github.ref, 'refs/heads/claude/')
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          UDID="${{ steps.sim.outputs.udid }}"
+          APP=build/sim/Build/Products/Debug-iphonesimulator/Thrustbound.app
+          xcrun simctl boot "$UDID" 2>/dev/null || true
+          xcrun simctl bootstatus "$UDID" -b
+          xcrun simctl status_bar "$UDID" override --time "9:41" --batteryState charged --batteryLevel 100 || true
+          xcrun simctl install "$UDID" "$APP"
+          mkdir -p shots
+          shoot() {
+            local name="$1" wait="$2"; shift 2
+            xcrun simctl terminate "$UDID" "$BUNDLE_ID" 2>/dev/null || true
+            xcrun simctl launch "$UDID" "$BUNDLE_ID" "$@" >/dev/null
+            sleep "$wait"
+            xcrun simctl io "$UDID" screenshot "shots/$name.png" >/dev/null
+          }
+          shoot 00-menu 5
+          shoot 01-levels 4 -screenshot levels
+          shoot 02-howto 4 -screenshot howto
+          shoot 03-settings 3 -screenshot settings
+          shoot 10-level01-intro 3 -screenshot game:1
+          for L in 01 07 13 17 23 28 30 33 39 40; do
+            shoot "20-level$L-demo" 5 -screenshot "game:$((10#$L)):demo"
+          done
+          xcrun simctl terminate "$UDID" "$BUNDLE_ID" 2>/dev/null || true
+          ls -la shots
+          cd shots
+          git init -q
+          git checkout -q -b ci-shots
+          git add .
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+            commit -q -m "Screenshots for ${GITHUB_SHA}"
+          git push -q -f "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" ci-shots
+
+      - name: Upload screenshots
+        if: always() && hashFiles('shots/*.png') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshots
+          path: shots/*.png
+          if-no-files-found: ignore
+
+      - name: Build unsigned IPA (device, Release)
+        run: |
+          set -euo pipefail
+          FMT=cat
+          if command -v xcbeautify >/dev/null 2>&1; then FMT="xcbeautify --renderer github-actions"; fi
+          xcodebuild build \
+            -project "$PROJECT" -scheme "$SCHEME" \
+            -configuration Release \
+            -sdk iphoneos -destination "generic/platform=iOS" \
+            -derivedDataPath build/device \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            | tee build/device.log | $FMT
+          APP=build/device/Build/Products/Release-iphoneos/Thrustbound.app
+          test -d "$APP"
+          for f in Thrustbound Info.plist Assets.car levels.json thrust.wav crash.wav star.wav; do
+            test -e "$APP/$f" || { echo "::error::missing $f in app bundle"; exit 1; }
+          done
+          plutil -p "$APP/Info.plist"
+          lipo -info "$APP/Thrustbound"
+          rm -rf build/ipa
+          mkdir -p build/ipa/Payload
+          cp -R "$APP" build/ipa/Payload/
+          (cd build/ipa && zip -qry ../../Thrustbound.ipa Payload)
+          unzip -l Thrustbound.ipa | tail -n 3
+          ls -la Thrustbound.ipa
+
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Thrustbound-ipa
+          path: Thrustbound.ipa
+
+      - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.release_tag != '')
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || inputs.release_tag }}
+        run: |
+          set -euo pipefail
+          ASSET="Thrustbound-${TAG}.ipa"
+          cp Thrustbound.ipa "$ASSET"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "$ASSET" --clobber
+          else
+            gh release create "$TAG" "$ASSET" \
+              --title "Thrustbound ${TAG}" \
+              --notes-file .github/release-notes.md \
+              --target "$GITHUB_SHA"
+          fi
+          gh release view "$TAG"
+
+      - name: Failure logs
+        if: failure()
+        run: |
+          for f in build/test.log build/device.log; do
+            if [ -f "$f" ]; then
+              echo "===== $f (errors) ====="
+              grep -nE "error:|warning: .*(isolat|actor)|Test Case .* failed|XCTAssert|fatal" "$f" | head -n 200 || true
+              echo "===== $f (tail) ====="
+              tail -n 80 "$f"
+            fi
+          done

@@ -10,8 +10,20 @@ on:
 
 jobs:
   validate:
+    name: Validate levels
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Placeholder
-        run: echo "Level validation will run here."
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install tooling
+        run: pip install numpy scipy shapely pillow
+      - name: Rebuild and validate every level
+        run: python3 tools/build_levels.py --render previews
+      - name: Report drift from committed levels.json
+        run: git diff --stat -- Thrustbound/Resources/levels.json || true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: level-previews
+          path: previews/*.png
