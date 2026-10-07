@@ -50,6 +50,7 @@ extension L10n {
           "Рисуй свои пещеры, испытывай их и делись ими со всеми пилотами.")
     }
     var openExample: String { t("OPEN THE EXAMPLE", "ОТКРЫТЬ ПРИМЕР") }
+    var exampleName: String { t("Example Cave", "Пещера-пример") }
     var statusDraft: String { t("Not tested", "Не проверен") }
     var statusTested: String { t("Tested", "Проверен") }
     var statusPublished: String { t("Published", "Опубликован") }

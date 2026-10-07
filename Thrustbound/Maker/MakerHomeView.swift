@@ -28,7 +28,7 @@ struct MakerHomeView: View {
                                     .multilineTextAlignment(.center)
                                     .fixedSize(horizontal: false, vertical: true)
                                 ActionButton(title: s.openExample, icon: "sparkles") {
-                                    let sample = maker.addSample(theme: 0)
+                                    let sample = maker.addSample(theme: 0, name: s.exampleName)
                                     app.go(.editor(sample.id))
                                 }
                             }

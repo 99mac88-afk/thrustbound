@@ -75,8 +75,9 @@ final class LevelStore: ObservableObject {
     nonisolated static let sampleName = "Example Cave"
 
     /// A small finished level that shows off most tools.
-    func addSample(theme: Int) -> EditorLevel {
-        let level = LevelStore.sample(theme: theme)
+    func addSample(theme: Int, name: String = LevelStore.sampleName) -> EditorLevel {
+        var level = LevelStore.sample(theme: theme)
+        level.name = name
         save(level)
         return level
     }
