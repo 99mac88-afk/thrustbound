@@ -108,6 +108,7 @@ class Sim:
         self.vx = self.vy = 0.0
         self.angle = 0.0
         self.fuel = self.lv["fuel"]
+        self.unlimited = False
         self.status = "flying"
         self.stars, self.cans, self.keys, self.doors = set(), set(), set(), set()
         self.land_t = 0.0
@@ -230,7 +231,8 @@ class Sim:
         for i, (x, y) in enumerate(self.lv["cans"]):
             if i not in self.cans and (self.x - x) ** 2 + (self.y - y) ** 2 < r2:
                 self.cans.add(i)
-                self.fuel = min(self.lv["fuel"], self.fuel + CAN_FUEL)
+                if not self.unlimited:
+                    self.fuel = min(self.lv["fuel"], self.fuel + CAN_FUEL)
         for i, k in enumerate(self.lv["keys"]):
             x, y = k["p"]
             if i not in self.keys and (self.x - x) ** 2 + (self.y - y) ** 2 < r2:
@@ -338,6 +340,7 @@ def fly(lv, unlimited_fuel=False):
     sim = Sim(lv)
     if unlimited_fuel:
         sim.fuel = 1e9
+        sim.unlimited = True
     solid, door_masks, _, _ = plan(lv, sim)
     sx, sy, _ = lv["start"]
     gx, gy, gw = lv["goal"]

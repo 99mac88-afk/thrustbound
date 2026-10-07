@@ -10,6 +10,7 @@ the playable interior of a 420-wide level is x = 20..400.
 import random
 
 from leveldsl import Level
+from levels2 import RUSSIAN2, WORLDS2, acid_falls, emerald_mines, event_horizon, nebula_gardens
 
 WORLDS = [
     {"name": "Launch Bay", "subtitle": "Learn to fly",
@@ -770,9 +771,15 @@ RUSSIAN = {
 }
 
 
+WORLDS += WORLDS2
+RUSSIAN.update(RUSSIAN2)
+
+
 def build_all():
     levels = []
-    for world, maker in enumerate((launch_bay, crystal_caverns, reactor_core, deep_void)):
+    makers = (launch_bay, crystal_caverns, reactor_core, deep_void,
+              emerald_mines, acid_falls, nebula_gardens, event_horizon)
+    for world, maker in enumerate(makers):
         group = maker()
         assert len(group) == 10, (maker.__name__, len(group))
         for lv in group:

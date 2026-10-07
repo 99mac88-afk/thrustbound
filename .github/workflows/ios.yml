@@ -55,6 +55,20 @@ jobs:
             fi
           fi
 
+      - name: Community server (optional)
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          if [ -n "$SUPABASE_URL" ] && [ -n "$SUPABASE_ANON_KEY" ]; then
+            python3 -c 'import json, os; json.dump({"url": os.environ["SUPABASE_URL"].strip(), "anonKey": os.environ["SUPABASE_ANON_KEY"].strip()}, open("Thrustbound/Resources/backend.json", "w"))'
+            echo "Building with the community server from the repository secrets."
+          elif [ -f Thrustbound/Resources/backend.json ]; then
+            echo "Building with the committed Thrustbound/Resources/backend.json."
+          else
+            echo "No community server configured: players can enter one in Community -> Account -> Server."
+          fi
+
       - name: Generate Xcode project
         run: |
           xcodegen --version
@@ -120,9 +134,17 @@ jobs:
           shoot 02-howto 4 -screenshot howto
           shoot 03-settings 3 -screenshot settings
           shoot 10-level01-intro 3 -screenshot game:1
-          for L in 01 07 13 17 23 28 30 33 39 40; do
+          for L in 01 07 13 17 23 28 30 33 39 40 41 46 52 57 63 66 73 75 79 80; do
             shoot "20-level$L-demo" 5 -screenshot "game:$((10#$L)):demo"
           done
+          shoot 50-maker-empty 3 -screenshot maker
+          shoot 51-editor 4 -screenshot editor
+          shoot 52-maker 3 -screenshot maker
+          shoot 53-test-flight 6 -screenshot custom:0:demo
+          shoot 54-community 4 -screenshot community
+          shoot 55-ru-editor 4 -lang ru -screenshot editor
+          shoot 56-ru-community 4 -lang ru -screenshot community
+          shoot 57-ru-maker 3 -lang ru -screenshot maker
           shoot 40-ru-menu 5 -lang ru
           shoot 41-ru-levels 4 -lang ru -screenshot levels
           shoot 42-ru-howto 4 -lang ru -screenshot howto

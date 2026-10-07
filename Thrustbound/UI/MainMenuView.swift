@@ -16,11 +16,11 @@ struct MainMenuView: View {
                                                  startRadius: 4, endRadius: 120))
                             .frame(width: 240, height: 240)
                         RocketGlyph()
-                            .frame(width: 110, height: min(170, geo.size.height * 0.22))
+                            .frame(width: 110, height: min(170, geo.size.height * 0.19))
                             .rotationEffect(.degrees(bob ? 6 : -6))
                             .offset(y: bob ? -10 : 8)
                     }
-                    .frame(height: min(220, geo.size.height * 0.28))
+                    .frame(height: min(220, geo.size.height * 0.25))
 
                     Text("THRUSTBOUND")
                         .font(UIStyle.font(min(44, geo.size.width * 0.105), .black))
@@ -37,9 +37,12 @@ struct MainMenuView: View {
 
                     Spacer(minLength: 24)
 
-                    VStack(spacing: 14) {
+                    let compact = geo.size.height < 720
+                    let buttonHeight: CGFloat = compact ? 48 : 54
+                    VStack(spacing: compact ? 10 : 14) {
                         let next = app.continueIndex
-                        ActionButton(title: app.hasProgress ? app.s.continueGame : app.s.play, icon: "play.fill", kind: .primary, height: 62) {
+                        ActionButton(title: app.hasProgress ? app.s.continueGame : app.s.play, icon: "play.fill", kind: .primary,
+                                     height: compact ? 56 : 62) {
                             app.go(.game(next))
                         }
                         if app.levels.indices.contains(next) {
@@ -48,14 +51,22 @@ struct MainMenuView: View {
                                 .foregroundColor(Color.white.opacity(0.6))
                                 .padding(.top, -6)
                         }
-                        ActionButton(title: app.s.levelsButton, icon: "square.grid.3x3.fill") {
+                        ActionButton(title: app.s.levelsButton, icon: "square.grid.3x3.fill", height: buttonHeight) {
                             app.go(.levels)
                         }
                         HStack(spacing: 14) {
-                            ActionButton(title: app.s.howToButton, icon: "questionmark.circle.fill") {
+                            ActionButton(title: app.s.communityButton, icon: "person.3.fill", height: buttonHeight) {
+                                app.go(.community)
+                            }
+                            ActionButton(title: app.s.makerButton, icon: "hammer.fill", height: buttonHeight) {
+                                app.go(.maker)
+                            }
+                        }
+                        HStack(spacing: 14) {
+                            ActionButton(title: app.s.howToButton, icon: "questionmark.circle.fill", height: buttonHeight) {
                                 app.go(.howTo)
                             }
-                            ActionButton(title: app.s.settingsButton, icon: "gearshape.fill") {
+                            ActionButton(title: app.s.settingsButton, icon: "gearshape.fill", height: buttonHeight) {
                                 app.go(.settings)
                             }
                         }

@@ -24,8 +24,8 @@ final class ThrustboundTests: XCTestCase {
     // MARK: - Data
 
     func testAllLevelsLoad() {
-        XCTAssertEqual(levels.count, 40)
-        XCTAssertEqual(Self.library.worlds.count, 4)
+        XCTAssertEqual(levels.count, 80)
+        XCTAssertEqual(Self.library.worlds.count, 8)
         XCTAssertEqual(Set(levels.map { $0.id }).count, levels.count, "level ids must be unique")
         for level in levels {
             XCTAssertEqual(level.stars.count, 3, level.name)
@@ -33,15 +33,22 @@ final class ThrustboundTests: XCTestCase {
             XCTAssertGreaterThan(level.fuel, 0, level.name)
             XCTAssertGreaterThan(level.par, 0, level.name)
             XCTAssertGreaterThanOrEqual(level.width, 420, level.name)
-            XCTAssertTrue((0..<4).contains(level.world), level.name)
+            XCTAssertTrue((0..<8).contains(level.world), level.name)
             for door in level.doors {
                 XCTAssertTrue(level.keys.contains { $0.color == door.color }, "\(level.name): door without key")
             }
         }
     }
 
+    /// The second half of the game is meant to be tight on fuel.
+    func testNewWorldsHaveSmallerTanks() {
+        let early = levels.filter { $0.world < 4 }.map(\.fuel)
+        let late = levels.filter { $0.world >= 4 }.map(\.fuel)
+        XCTAssertLessThan(late.reduce(0, +) / Double(late.count), early.reduce(0, +) / Double(early.count))
+    }
+
     func testEachWorldHasTenLevels() {
-        for world in 0..<4 {
+        for world in 0..<8 {
             XCTAssertEqual(levels.filter { $0.world == world }.count, 10)
         }
     }

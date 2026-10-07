@@ -31,8 +31,8 @@ struct GameView: View {
     @StateObject private var session: GameSession
     @Environment(\.scenePhase) private var scenePhase
 
-    init(app: AppModel, levelIndex: Int) {
-        _session = StateObject(wrappedValue: GameSession(app: app, levelIndex: levelIndex))
+    init(app: AppModel, levelIndex: Int, custom: CustomPlay? = nil) {
+        _session = StateObject(wrappedValue: GameSession(app: app, levelIndex: levelIndex, custom: custom))
     }
 
     private var accent: Color { UIStyle.accent(for: session.worldInfo) }
@@ -45,7 +45,7 @@ struct GameView: View {
             HUDView(session: session, hud: session.hud, accent: accent)
 
             if session.showIntro && session.phase == .playing {
-                IntroBanner(tag: session.s.levelTag(session.levelLabel), name: session.levelName,
+                IntroBanner(tag: session.levelTag, name: session.levelName,
                             hint: session.levelHint, accent: accent)
                     .allowsHitTesting(false)
                     .transition(.opacity)
@@ -91,7 +91,7 @@ struct HUDView: View {
             HStack(spacing: 12) {
                 IconButton(icon: "pause.fill", size: 42) { session.pause() }
                 VStack(alignment: .leading, spacing: 1) {
-                    Text(session.s.levelTag(session.levelLabel))
+                    Text(session.levelTag)
                         .font(UIStyle.font(11, .bold))
                         .tracking(1.5)
                         .foregroundColor(accent)
@@ -102,7 +102,9 @@ struct HUDView: View {
                         .minimumScaleFactor(0.7)
                 }
                 Spacer(minLength: 8)
-                StarRow(filled: s.stars, size: 20)
+                if session.starTotal > 0 {
+                    StarRow(filled: s.stars, total: session.starTotal, size: 20)
+                }
             }
             HStack(spacing: 10) {
                 FuelGauge(fraction: s.fuel)
@@ -296,7 +298,7 @@ struct PauseOverlay: View {
             Text(session.s.paused)
                 .font(UIStyle.font(30, .black))
                 .foregroundColor(.white)
-            Text(session.s.levelLine(session.levelLabel, session.levelName))
+            Text(session.custom == nil ? session.s.levelLine(session.levelLabel, session.levelName) : session.levelName)
                 .font(UIStyle.font(15, .semibold))
                 .foregroundColor(Color.white.opacity(0.7))
             Text(session.levelHint)
@@ -307,7 +309,7 @@ struct PauseOverlay: View {
             ActionButton(title: session.s.resume, icon: "play.fill", kind: .primary, accent: accent) { session.resume() }
             ActionButton(title: session.s.restart, icon: "arrow.counterclockwise", accent: accent) { session.restart() }
             HStack(spacing: 12) {
-                ActionButton(title: session.s.levelsButton, icon: "square.grid.3x3.fill", accent: accent) { session.quitToLevels() }
+                ActionButton(title: session.backTitle, icon: session.backIcon, accent: accent) { session.quitToLevels() }
                 ActionButton(title: session.s.menu, icon: "house.fill", accent: accent) { session.quitToMenu() }
             }
             HStack(spacing: 22) {
@@ -371,7 +373,7 @@ struct FailOverlay: View {
                 .foregroundColor(Color.white.opacity(0.4))
             ActionButton(title: session.s.tryAgain, icon: "arrow.counterclockwise", kind: .primary, accent: accent) { session.restart() }
             HStack(spacing: 12) {
-                ActionButton(title: session.s.levelsButton, icon: "square.grid.3x3.fill", accent: accent) { session.quitToLevels() }
+                ActionButton(title: session.backTitle, icon: session.backIcon, accent: accent) { session.quitToLevels() }
                 ActionButton(title: session.s.menu, icon: "house.fill", accent: accent) { session.quitToMenu() }
             }
         }
@@ -384,32 +386,38 @@ struct FailOverlay: View {
 }
 
 struct WinOverlay: View {
+    @EnvironmentObject var app: AppModel
     let session: GameSession
     let result: LevelResult
     let accent: Color
     @State var shown = false
 
+    private var perfect: Bool { session.starTotal > 0 && result.stars >= session.starTotal }
+
     var body: some View {
         OverlayCard(accent: accent) {
-            Text(result.stars == 3 ? session.s.perfect : session.s.landed)
+            Text(perfect ? session.s.perfect : session.s.landed)
                 .font(UIStyle.font(34, .black))
                 .foregroundColor(.white)
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
                 .shadow(color: UIStyle.green.opacity(0.8), radius: 14)
-            HStack(spacing: 14) {
-                ForEach(0..<3, id: \.self) { i in
-                    Image(systemName: i < result.stars ? "star.fill" : "star")
-                        .font(.system(size: i == 1 ? 50 : 40, weight: .bold))
-                        .foregroundColor(i < result.stars ? UIStyle.gold : Color.white.opacity(0.25))
-                        .shadow(color: i < result.stars ? UIStyle.gold.opacity(0.8) : .clear, radius: 12)
-                        .offset(y: i == 1 ? -8 : 0)
-                        .scaleEffect(shown ? 1 : 0.2)
-                        .opacity(shown ? 1 : 0)
-                        .animation(.spring(response: 0.45, dampingFraction: 0.55).delay(0.15 + 0.18 * Double(i)), value: shown)
+            if session.starTotal > 0 {
+                HStack(spacing: 14) {
+                    ForEach(0..<session.starTotal, id: \.self) { i in
+                        let middle = session.starTotal == 3 && i == 1
+                        Image(systemName: i < result.stars ? "star.fill" : "star")
+                            .font(.system(size: middle ? 50 : 40, weight: .bold))
+                            .foregroundColor(i < result.stars ? UIStyle.gold : Color.white.opacity(0.25))
+                            .shadow(color: i < result.stars ? UIStyle.gold.opacity(0.8) : .clear, radius: 12)
+                            .offset(y: middle ? -8 : 0)
+                            .scaleEffect(shown ? 1 : 0.2)
+                            .opacity(shown ? 1 : 0)
+                            .animation(.spring(response: 0.45, dampingFraction: 0.55).delay(0.15 + 0.18 * Double(i)), value: shown)
+                    }
                 }
+                .padding(.vertical, 4)
             }
-            .padding(.vertical, 4)
 
             VStack(spacing: 8) {
                 statRow(icon: "timer", label: session.s.timeLabel, value: session.s.time(result.time),
@@ -421,21 +429,40 @@ struct WinOverlay: View {
             .padding(14)
             .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(Color.white.opacity(0.06)))
 
-            if !session.hasNextLevel {
-                Text(session.s.allDone)
-                    .font(UIStyle.font(15, .bold))
-                    .foregroundColor(UIStyle.gold)
-                    .multilineTextAlignment(.center)
-            }
-
-            if session.hasNextLevel {
-                ActionButton(title: session.s.nextLevel, icon: "play.fill", kind: .primary, accent: accent) { session.nextLevel() }
-            } else {
-                ActionButton(title: session.s.mainMenu, icon: "house.fill", kind: .primary, accent: accent) { session.quitToMenu() }
-            }
-            HStack(spacing: 12) {
+            if let custom = session.custom {
+                if custom.isTest {
+                    Label(session.s.testCleared, systemImage: "checkmark.seal.fill")
+                        .font(UIStyle.font(15, .bold))
+                        .foregroundColor(UIStyle.green)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                    ActionButton(title: session.s.editorButton, icon: "hammer.fill", kind: .primary, accent: accent) {
+                        session.quitToLevels()
+                    }
+                } else if let level = custom.communityLevel {
+                    LikeButton(community: app.community, level: level, accent: accent)
+                    ActionButton(title: session.s.communityButton, icon: "person.3.fill", kind: .primary, accent: accent) {
+                        session.quitToLevels()
+                    }
+                }
                 ActionButton(title: session.s.retry, icon: "arrow.counterclockwise", accent: accent) { session.restart() }
-                ActionButton(title: session.s.levelsButton, icon: "square.grid.3x3.fill", accent: accent) { session.quitToLevels() }
+            } else {
+                if !session.hasNextLevel {
+                    Text(session.s.allDone)
+                        .font(UIStyle.font(15, .bold))
+                        .foregroundColor(UIStyle.gold)
+                        .multilineTextAlignment(.center)
+                }
+
+                if session.hasNextLevel {
+                    ActionButton(title: session.s.nextLevel, icon: "play.fill", kind: .primary, accent: accent) { session.nextLevel() }
+                } else {
+                    ActionButton(title: session.s.mainMenu, icon: "house.fill", kind: .primary, accent: accent) { session.quitToMenu() }
+                }
+                HStack(spacing: 12) {
+                    ActionButton(title: session.s.retry, icon: "arrow.counterclockwise", accent: accent) { session.restart() }
+                    ActionButton(title: session.s.levelsButton, icon: "square.grid.3x3.fill", accent: accent) { session.quitToLevels() }
+                }
             }
         }
         .onAppear { shown = true }

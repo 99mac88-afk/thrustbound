@@ -35,7 +35,7 @@ struct L10n {
         self.lang = lang
     }
 
-    private func t(_ en: String, _ ru: String) -> String {
+    func t(_ en: String, _ ru: String) -> String {
         lang == .ru ? ru : en
     }
 
@@ -198,7 +198,7 @@ struct L10n {
                 Tip(icon: "arrow.down.to.line", title: "Посадка",
                     text: "Садись на зелёную площадку медленно и ровно. Шкала скорости не должна быть в красной зоне — замри на мгновение."),
                 Tip(icon: "star.fill", title: "Звёзды",
-                    text: "На каждом уровне спрятаны три звезды. Собери их и приземлись, чтобы они засчитались. Соберёшь все 120?"),
+                    text: "На каждом уровне спрятаны три звезды. Собери их и приземлись, чтобы они засчитались. Соберёшь все?"),
                 Tip(icon: "fuelpump.fill", title: "Топливо",
                     text: "Бак ограничен. Оранжевые канистры добавляют топливо. Поворачивать можно бесплатно — топливо тратит только тяга."),
                 Tip(icon: "exclamationmark.triangle.fill", title: "Опасность",
@@ -217,7 +217,7 @@ struct L10n {
             Tip(icon: "arrow.down.to.line", title: "Land",
                 text: "Touch down on the green pad slowly and upright. Keep the speed meter out of the red and hold still for a moment."),
             Tip(icon: "star.fill", title: "Stars",
-                text: "Each level hides three stars. Grab them and land to keep them. Can you get all 120?"),
+                text: "Each level hides three stars. Grab them and land to keep them. Can you get them all?"),
             Tip(icon: "fuelpump.fill", title: "Fuel",
                 text: "Your tank is limited. Orange cans give you more fuel. Rotating is free, only thrust burns fuel."),
             Tip(icon: "exclamationmark.triangle.fill", title: "Danger",

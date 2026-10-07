@@ -1,0 +1,20 @@
+name: Backend Check
+
+on:
+  push:
+    paths:
+      - "backend/**"
+      - ".github/workflows/backend.yml"
+  workflow_dispatch:
+
+jobs:
+  backend:
+    name: Community server rules and API
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - name: Security rules on plain PostgreSQL
+        run: bash backend/test/run_tests.sh
+      - name: Every app request against Supabase Auth + PostgREST
+        run: bash backend/test/run_api_tests.sh

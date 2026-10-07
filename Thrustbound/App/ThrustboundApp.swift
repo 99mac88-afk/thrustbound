@@ -8,6 +8,9 @@ struct ThrustboundApp: App {
         WindowGroup {
             RootView()
                 .environmentObject(app)
+                .environmentObject(app.maker)
+                .environmentObject(app.account)
+                .environmentObject(app.community)
                 .preferredColorScheme(.dark)
                 .onAppear { SoundManager.shared.prepare() }
         }
@@ -39,6 +42,18 @@ struct RootView: View {
                     HowToPlayView().transition(.opacity)
                 case .settings:
                     SettingsView().transition(.opacity)
+                case .maker:
+                    MakerHomeView().transition(.opacity)
+                case .editor(let id):
+                    EditorView(levelID: id)
+                        .id(id)
+                        .transition(.opacity)
+                case .community:
+                    CommunityView().transition(.opacity)
+                case .custom(let play):
+                    GameView(app: app, levelIndex: 0, custom: play)
+                        .id(app.gameToken)
+                        .transition(.opacity)
                 }
             }
         }

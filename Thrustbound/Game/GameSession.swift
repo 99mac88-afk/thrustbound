@@ -38,24 +38,46 @@ final class GameSession: ObservableObject {
     let hud: HUDModel
     let scene: GameScene
     let app: AppModel
+    /// Set when playing a test flight or a community level instead of the campaign.
+    let custom: CustomPlay?
     private var loadToken = 0
 
-    var level: LevelData { app.levels[levelIndex] }
+    var level: LevelData { custom?.level ?? app.levels[levelIndex] }
     /// Text in the player's language.
     var s: L10n { app.s }
-    var levelName: String { s.name(level) }
-    var levelHint: String { s.hint(level) }
+    var levelName: String { custom == nil ? s.name(level) : level.name }
+    var levelHint: String {
+        guard let custom = custom else { return s.hint(level) }
+        if let community = custom.communityLevel { return s.byAuthor(community.author) }
+        return s.testFlightHint
+    }
     var worldInfo: WorldInfo? { app.world(for: level) }
-    var hasNextLevel: Bool { levelIndex + 1 < app.levels.count }
+    var hasNextLevel: Bool { custom == nil && levelIndex + 1 < app.levels.count }
+    /// How many stars this level has (campaign levels always have three).
+    var starTotal: Int { custom == nil ? 3 : level.stars.count }
     var levelLabel: String {
         let indices = app.levelIndices(inWorld: level.world)
         let number = (indices.firstIndex(of: levelIndex) ?? 0) + 1
         return "\(level.world + 1)-\(number)"
     }
+    /// The small tag above the level name ("LEVEL 2-3", "TEST FLIGHT", "COMMUNITY").
+    var levelTag: String {
+        guard let custom = custom else { return s.levelTag(levelLabel) }
+        return custom.isTest ? s.testFlightTag : s.communityTag
+    }
+    var backTitle: String {
+        guard let custom = custom else { return s.levelsButton }
+        return custom.isTest ? s.editorButton : s.communityButton
+    }
+    var backIcon: String {
+        guard let custom = custom else { return "square.grid.3x3.fill" }
+        return custom.isTest ? "hammer.fill" : "person.3.fill"
+    }
 
-    init(app: AppModel, levelIndex: Int) {
+    init(app: AppModel, levelIndex: Int, custom: CustomPlay? = nil) {
         self.app = app
-        self.levelIndex = max(0, min(levelIndex, app.levels.count - 1))
+        self.custom = custom
+        self.levelIndex = custom == nil ? max(0, min(levelIndex, app.levels.count - 1)) : 0
         hud = HUDModel()
         scene = GameScene(size: CGSize(width: 390, height: 844))
         scene.session = self
@@ -112,10 +134,15 @@ final class GameSession: ObservableObject {
         withAnimation(.easeOut(duration: 0.2)) { phase = .playing }
     }
 
+    /// Back to where this level was opened from: the level list, the editor or the community.
     func quitToLevels() {
         scene.setGamePaused(true)
         SoundManager.shared.setThrust(false)
-        app.go(.levels)
+        switch custom?.origin {
+        case .editor(let id, _)?: app.go(.editor(id))
+        case .community?: app.go(.community)
+        case nil: app.go(.levels)
+        }
     }
 
     func quitToMenu() {
@@ -143,7 +170,16 @@ final class GameSession: ObservableObject {
 
     func didWin(stars: Int, time: Double, fuelLeft: Double) {
         SoundManager.shared.setThrust(false)
-        let update = app.recordWin(levelIndex: levelIndex, stars: stars, time: time)
+        let update: RecordUpdate
+        switch custom?.origin {
+        case nil:
+            update = app.recordWin(levelIndex: levelIndex, stars: stars, time: time)
+        case .editor(let id, let hash)?:
+            app.maker.recordClear(id: id, hash: hash, time: time)
+            update = RecordUpdate(newBestStars: false, newBestTime: false, previousBestTime: nil, firstClear: false)
+        case .community?:
+            update = RecordUpdate(newBestStars: false, newBestTime: false, previousBestTime: nil, firstClear: false)
+        }
         result = LevelResult(stars: stars, time: time, fuelLeft: fuelLeft, par: level.par, update: update)
         withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) { phase = .won }
     }

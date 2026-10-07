@@ -1,8 +1,12 @@
-## Thrustbound 🚀
+## Thrustbound 2.0 🚀
 
-Fly a tiny rocket through 40 hand-built levels. Gravity always pulls you down: steer with the stick on the left, burn fuel with the **GAS** button on the right, and touch down gently on the green pad.
+**New in 2.0**
+- **40 new levels** in 4 new worlds: Emerald Mines, Acid Falls, Nebula Gardens and Event Horizon (80 levels in total). Their fuel tanks are much smaller, so every burst of gas counts.
+- **Level Maker**: draw rock, place the start and goal pads, stars, fuel, spikes, mines, patrol mines, blades, lasers, wind, keys and doors. Undo and redo, 8 looks, narrow or wide, up to 120 rows tall. **TEST** flies it right away.
+- **Community**: create an account and publish your levels. Browse **New**, **Top**, **Most viewed** and **Mine**. Every level shows its **views** and **likes**, and you can like levels you enjoyed.
+- **Admin**: the first account created on the server is the admin and can delete any published level. Authors can delete their own.
 
-**New in 1.1:** full Russian translation. The game picks English or Russian from your iPhone's language automatically, and you can change it in **Settings → Language**.
+Community needs a free Supabase server. The setup takes a few minutes and is explained in the README under *Setting up the server*. Until a server is set up, everything else works offline, including the Level Maker.
 
 ### Install (sideload)
 This IPA is **unsigned**. A sideloading tool signs it with your Apple ID when it installs it:
@@ -15,21 +19,19 @@ With a free Apple ID the app has to be refreshed every 7 days (AltStore and Side
 
 **Requirements:** iPhone with iOS 15 or later.
 
-### What's inside
-- 40 levels across 4 worlds: Launch Bay, Crystal Caverns, Reactor Core and Deep Void
-- Spikes, wind, lasers, spinning blades, mines, keys and doors
-- 3 stars to collect in every level, plus best times and par times
-- English and Russian, left-handed controls, sound effects and haptics
-
 ---
 
-## Thrustbound 🚀 (по-русски)
+## Thrustbound 2.0 🚀 (по-русски)
 
-Управляй маленькой ракетой на 40 уровнях. Гравитация всегда тянет вниз: поворачивай джойстиком слева, жми **ГАЗ** справа и мягко садись на зелёную площадку.
+**Новое в 2.0**
+- **40 новых уровней** в 4 новых мирах: Изумрудные копи, Кислотные водопады, Сады туманности и Горизонт событий (всего 80 уровней). Баки там гораздо меньше, так что каждое нажатие газа на счету.
+- **Конструктор уровней**: рисуй скалы, ставь старт и финиш, звёзды, топливо, шипы, мины, патрульные мины, лезвия, лазеры, ветер, ключи и двери. Есть отмена и повтор, 8 оформлений, узкий или широкий уровень высотой до 120 рядов. Кнопка **ТЕСТ** сразу запускает полёт.
+- **Сообщество**: создай аккаунт и публикуй свои уровни. Разделы **Новые**, **Лучшие**, **Популярные** и **Мои**. У каждого уровня есть счётчики **просмотров** и **лайков**.
+- **Администратор**: первый созданный на сервере аккаунт становится администратором и может удалять любые опубликованные уровни. Авторы могут удалять свои.
 
-**Новое в 1.1:** полный перевод на русский язык. Игра сама выбирает русский или английский по языку iPhone, а сменить язык можно в **Настройки → Язык**.
+Для сообщества нужен бесплатный сервер Supabase (настройка описана в README, раздел *Setting up the server*). Без сервера всё остальное, включая конструктор, работает офлайн.
 
 ### Установка
-IPA **не подписан** — его подпишет программа для установки с твоим Apple ID: **Sideloadly**, **AltStore / SideStore** или **TrollStore**. С бесплатным Apple ID приложение нужно обновлять раз в 7 дней. На iOS 16 и новее при первом запуске включи **Настройки → Конфиденциальность и безопасность → Режим разработчика**.
+IPA **не подписан**. Его подпишет программа для установки с твоим Apple ID: **Sideloadly**, **AltStore / SideStore** или **TrollStore**. С бесплатным Apple ID приложение нужно обновлять раз в 7 дней. На iOS 16 и новее при первом запуске включи **Настройки → Конфиденциальность и безопасность → Режим разработчика**.
 
 **Требования:** iPhone с iOS 15 или новее.

@@ -33,6 +33,30 @@ struct LaunchOptions {
     }
 }
 
+/// A level played outside the campaign: a test flight from the editor or a community level.
+struct CustomPlay: Equatable {
+    enum Origin {
+        case editor(levelID: UUID, hash: String)
+        case community(CommunityLevel)
+    }
+
+    let id = UUID()
+    let level: LevelData
+    let origin: Origin
+
+    static func == (a: CustomPlay, b: CustomPlay) -> Bool { a.id == b.id }
+
+    var communityLevel: CommunityLevel? {
+        if case .community(let l) = origin { return l }
+        return nil
+    }
+
+    var isTest: Bool {
+        if case .editor = origin { return true }
+        return false
+    }
+}
+
 @MainActor
 final class AppModel: ObservableObject {
     enum Screen: Equatable {
@@ -41,6 +65,10 @@ final class AppModel: ObservableObject {
         case game(Int)
         case howTo
         case settings
+        case maker
+        case editor(UUID)
+        case community
+        case custom(CustomPlay)
     }
 
     @Published var screen: Screen = .menu
@@ -75,6 +103,11 @@ final class AppModel: ObservableObject {
 
     let library: LevelLibrary
     let launch: LaunchOptions
+    /// Levels made in the level maker.
+    let maker: LevelStore
+    /// Community account and levels.
+    let account: AccountStore
+    let community: CommunityStore
     /// Bumped every time a game starts so SwiftUI builds a fresh game screen.
     private(set) var gameToken = 0
 
@@ -98,6 +131,9 @@ final class AppModel: ObservableObject {
                                Keys.language: AppLanguage.system.rawValue])
         library = LevelLibrary.load()
         launch = LaunchOptions.parse(ProcessInfo.processInfo.arguments)
+        maker = LevelStore(worlds: library.worlds)
+        account = AccountStore()
+        community = CommunityStore(account: account)
         _soundOn = Published(initialValue: ud.bool(forKey: Keys.sound))
         _hapticsOn = Published(initialValue: ud.bool(forKey: Keys.haptics))
         _swapControls = Published(initialValue: ud.bool(forKey: Keys.swap))
@@ -122,6 +158,15 @@ final class AppModel: ObservableObject {
         case "levels": screen = .levels
         case "howto": screen = .howTo
         case "settings": screen = .settings
+        case "community": screen = .community
+        case "maker": screen = .maker
+        case "editor":
+            let sample = maker.levels.first { $0.name == LevelStore.sampleName } ?? maker.addSample(theme: launch.level ?? 0)
+            screen = .editor(sample.id)
+        case "custom":
+            let sample = maker.levels.first { $0.name == LevelStore.sampleName } ?? maker.addSample(theme: launch.level ?? 0)
+            screen = .custom(CustomPlay(level: LevelCompiler.compile(sample, worldCount: worlds.count),
+                                        origin: .editor(levelID: sample.id, hash: sample.contentHash)))
         case "game":
             let index = max(0, min(levels.count - 1, (launch.level ?? 1) - 1))
             if !levels.isEmpty { screen = .game(index) }
@@ -132,7 +177,16 @@ final class AppModel: ObservableObject {
     // MARK: - Navigation
 
     func go(_ newScreen: Screen) {
-        if case .game = newScreen { gameToken += 1 }
+        switch newScreen {
+        case .game, .custom: gameToken += 1
+        default: break
+        }
+        if case .editor = screen, newScreen != screen {
+            switch newScreen {
+            case .custom: break
+            default: maker.closeSession()
+            }
+        }
         withAnimation(.easeInOut(duration: 0.25)) {
             screen = newScreen
         }

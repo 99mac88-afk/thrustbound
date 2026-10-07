@@ -368,7 +368,8 @@ def main():
         flown = ""
         if not errors and "--fast" not in sys.argv:
             errors += fly_and_tune(lv, data, info)
-            flown = (f" auto {info.get('auto_used', 0):4.1f}s fuel in {info.get('auto_time', 0):5.1f}s")
+            flown = (f" auto {info.get('auto_used', 0):4.1f}s fuel in {info.get('auto_time', 0):5.1f}s"
+                     f"{' TIGHT' if info.get('tight') else ''}")
         out_levels.append(data)
         status = "OK " if not errors else "ERR"
         rc = info.get("route_clear")
@@ -401,7 +402,22 @@ def fly_and_tune(lv, data, info):
         return [f"autopilot could not finish: {measure.get('status')} {measure.get('why')}"]
     info["auto_used"] = measure["used"]
     info["auto_time"] = measure["time"]
-    if lv.fuel is None:
+    if getattr(lv, "tight", False) and lv.fuel is None:
+        # Tight levels: the tank only covers the route once the fuel cans on
+        # it are collected. Start low and grow until the autopilot lands.
+        used = measure["used"]
+        cans = measure.get("cans", 0)
+        tank = math.ceil(max(used - 0.7 * CAN_FUEL * cans, used * 0.55) / lv.fuel_ratio)
+        ceiling = math.ceil(used / lv.fuel_ratio) + 20
+        while tank < ceiling:
+            data["fuel"] = float(tank)
+            trial = autopilot.fly(data)
+            if trial["ok"] and trial["stars"] == len(data["stars"]):
+                break
+            tank += 1
+        data["fuel"] = float(tank)
+        info["tight"] = True
+    elif lv.fuel is None:
         needed = math.ceil(measure["used"] / lv.fuel_ratio)
         data["fuel"] = float(max(data["fuel"], needed))
     if lv.par_explicit is None:
