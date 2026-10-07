@@ -21,7 +21,7 @@ final class AccountStore: ObservableObject {
     private static let profileKey = "community.profile.v1"
     private static let sessionAccount = "session"
 
-    static let usernamePattern = "^[A-Za-z0-9_]{3,20}$"
+    nonisolated static let usernamePattern = "^[A-Za-z0-9_]{3,20}$"
 
     init(bundled: BackendConfig? = BackendConfig.bundled()) {
         bundledConfig = bundled
@@ -53,7 +53,7 @@ final class AccountStore: ObservableObject {
     var userID: String? { session?.userID }
     var hasBundledServer: Bool { bundledConfig != nil }
 
-    static func isValidUsername(_ name: String) -> Bool {
+    nonisolated static func isValidUsername(_ name: String) -> Bool {
         name.range(of: usernamePattern, options: .regularExpression) != nil
     }
 

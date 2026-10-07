@@ -72,7 +72,7 @@ final class LevelStore: ObservableObject {
         return level
     }
 
-    static let sampleName = "Example Cave"
+    nonisolated static let sampleName = "Example Cave"
 
     /// A small finished level that shows off most tools.
     func addSample(theme: Int) -> EditorLevel {
@@ -81,7 +81,7 @@ final class LevelStore: ObservableObject {
         return level
     }
 
-    static func sample(theme: Int) -> EditorLevel {
+    nonisolated static func sample(theme: Int) -> EditorLevel {
         var l = EditorLevel(name: sampleName, cols: EditorLevel.narrowCols, rows: 30, theme: theme)
         func rock(_ c0: Int, _ c1: Int, _ r: Int) {
             for c in c0...c1 { l.setRock(c, r, true) }

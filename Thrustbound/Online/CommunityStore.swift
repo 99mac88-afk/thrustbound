@@ -231,7 +231,7 @@ final class CommunityStore: ObservableObject {
 
     // MARK: - Decoding
 
-    static func decodeList(_ data: Data) throws -> [CommunityLevel] {
+    nonisolated static func decodeList(_ data: Data) throws -> [CommunityLevel] {
         struct Author: Decodable { let username: String }
         struct Row: Decodable {
             let id: String
@@ -250,7 +250,7 @@ final class CommunityStore: ObservableObject {
     }
 
     /// Postgres timestamps look like 2026-10-07T13:40:05.480163+00:00.
-    static func parseDate(_ text: String) -> Date? {
+    nonisolated static func parseDate(_ text: String) -> Date? {
         let plain = ISO8601DateFormatter()
         plain.formatOptions = [.withInternetDateTime]
         if let d = plain.date(from: text) { return d }
