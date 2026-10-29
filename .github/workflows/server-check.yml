@@ -1,0 +1,21 @@
+name: Server Check
+
+# Read-only checks of the community server the app ships with
+# (Thrustbound/Resources/backend.json). Nothing is created or changed.
+on:
+  push:
+    paths:
+      - "Thrustbound/Resources/backend.json"
+      - "web/config.js"
+      - ".github/workflows/server-check.yml"
+  workflow_dispatch:
+
+jobs:
+  check:
+    name: Live Supabase project
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+      - name: Check the live server (read only)
+        run: python3 tools/check_server.py Thrustbound/Resources/backend.json
