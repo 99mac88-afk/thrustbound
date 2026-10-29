@@ -4,6 +4,8 @@ on:
   push:
     paths:
       - "backend/**"
+      - "web/js/online.js"
+      - "web/test/online-flow.mjs"
       - ".github/workflows/backend.yml"
   workflow_dispatch:
 

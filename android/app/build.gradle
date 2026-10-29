@@ -1,0 +1,54 @@
+plugins {
+    id 'com.android.application'
+}
+
+// Release signing key from the environment (CI fills these from repository secrets).
+// Without them the APK is signed with the build machine's debug key: it installs fine,
+// but a later version signed with another key cannot install over it.
+def keystorePath = System.getenv('ANDROID_KEYSTORE_PATH')
+def hasReleaseKey = keystorePath != null && !keystorePath.isEmpty() && file(keystorePath).exists()
+
+android {
+    namespace 'com.thrustbound.game'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId 'com.thrustbound.game'
+        minSdk 24
+        targetSdk 34
+        versionCode project.property('appVersionCode') as int
+        versionName project.property('appVersionName')
+    }
+
+    signingConfigs {
+        release {
+            if (hasReleaseKey) {
+                storeFile file(keystorePath)
+                storePassword System.getenv('ANDROID_KEYSTORE_PASSWORD')
+                keyAlias System.getenv('ANDROID_KEY_ALIAS')
+                keyPassword System.getenv('ANDROID_KEY_PASSWORD') ?: System.getenv('ANDROID_KEYSTORE_PASSWORD')
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig hasReleaseKey ? signingConfigs.release : signingConfigs.debug
+        }
+    }
+
+    buildFeatures {
+        buildConfig true
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    // Keep the web files exactly as built (no compression tricks on audio, no stripping).
+    androidResources {
+        noCompress 'wav'
+    }
+}

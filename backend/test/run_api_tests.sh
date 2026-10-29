@@ -89,3 +89,8 @@ PY
 )"
 
 AUTH_URL=http://127.0.0.1:59999 REST_URL=http://127.0.0.1:53000 ANON_KEY="$ANON_KEY" python3 "$HERE/api_flow.py"
+
+# The website / Android app's own client code, against the same services.
+if command -v node >/dev/null 2>&1; then
+  AUTH_URL=http://127.0.0.1:59999 REST_URL=http://127.0.0.1:53000 ANON_KEY="$ANON_KEY" node "$HERE/../../web/test/online-flow.mjs"
+fi
