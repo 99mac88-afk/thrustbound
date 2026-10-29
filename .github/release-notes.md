@@ -1,37 +1,25 @@
-## Thrustbound 2.0 🚀
+## Thrustbound 2.1 🚀
 
-**New in 2.0**
-- **40 new levels** in 4 new worlds: Emerald Mines, Acid Falls, Nebula Gardens and Event Horizon (80 levels in total). Their fuel tanks are much smaller, so every burst of gas counts.
-- **Level Maker**: draw rock, place the start and goal pads, stars, fuel, spikes, mines, patrol mines, blades, lasers, wind, keys and doors. Undo and redo, 8 looks, narrow or wide, up to 120 rows tall. **TEST** flies it right away.
-- **Community**: create an account and publish your levels. Browse **New**, **Top**, **Most viewed** and **Mine**. Every level shows its **views** and **likes**, and you can like levels you enjoyed.
-- **Admin**: the first account created on the server is the admin and can delete any published level. Authors can delete their own.
+**New in 2.1**
+- **Android app**: download `Thrustbound.apk` below, open it on your phone and allow the install. Android 7 or later.
+- **Play in the browser**: https://99mac88-afk.github.io/rocket/. On a phone it uses the same touch controls; on a computer use the arrow keys and Space. The website detects your phone and recommends the right app.
+- **Community is switched on**: the apps now connect to the Thrustbound server out of the box. Create an account to publish levels and like other pilots' levels. Levels and accounts are shared between iPhone, Android and the web.
 
-Community needs a free Supabase server. The setup takes a few minutes and is explained in the README under *Setting up the server*. Until a server is set up, everything else works offline, including the Level Maker.
+**Downloads**
+- iPhone: `Thrustbound.ipa`. It is unsigned, so install it with **AltStore / SideStore**, **Sideloadly** or **TrollStore**. iOS 15 or later. With a free Apple ID it must be refreshed every 7 days, and on iOS 16+ you need to turn on **Settings → Privacy & Security → Developer Mode**.
+- Android: `Thrustbound.apk`. Open the file and allow your browser to install apps when Android asks.
 
-### Install (sideload)
-This IPA is **unsigned**. A sideloading tool signs it with your Apple ID when it installs it:
-
-- **Sideloadly** (Windows/macOS): connect your iPhone, drag the `.ipa` in, enter your Apple ID and press Start.
-- **AltStore / SideStore**: open the `.ipa` from the Files app with AltStore, or use *My Apps → +*.
-- **TrollStore** (supported iOS versions): open the `.ipa` with TrollStore.
-
-With a free Apple ID the app has to be refreshed every 7 days (AltStore and SideStore can do this automatically). On iOS 16 or later, turn on **Settings → Privacy & Security → Developer Mode** the first time.
-
-**Requirements:** iPhone with iOS 15 or later.
+Also includes everything from 2.0: 80 levels in 8 worlds (worlds 5–8 have tight fuel tanks), the Level Maker, and Community with views, likes and admin tools.
 
 ---
 
-## Thrustbound 2.0 🚀 (по-русски)
+## Thrustbound 2.1 🚀 (по-русски)
 
-**Новое в 2.0**
-- **40 новых уровней** в 4 новых мирах: Изумрудные копи, Кислотные водопады, Сады туманности и Горизонт событий (всего 80 уровней). Баки там гораздо меньше, так что каждое нажатие газа на счету.
-- **Конструктор уровней**: рисуй скалы, ставь старт и финиш, звёзды, топливо, шипы, мины, патрульные мины, лезвия, лазеры, ветер, ключи и двери. Есть отмена и повтор, 8 оформлений, узкий или широкий уровень высотой до 120 рядов. Кнопка **ТЕСТ** сразу запускает полёт.
-- **Сообщество**: создай аккаунт и публикуй свои уровни. Разделы **Новые**, **Лучшие**, **Популярные** и **Мои**. У каждого уровня есть счётчики **просмотров** и **лайков**.
-- **Администратор**: первый созданный на сервере аккаунт становится администратором и может удалять любые опубликованные уровни. Авторы могут удалять свои.
+**Новое в 2.1**
+- **Приложение для Android**: скачай `Thrustbound.apk` ниже, открой его на телефоне и разреши установку. Android 7 или новее.
+- **Игра в браузере**: https://99mac88-afk.github.io/rocket/. На телефоне управление то же, на компьютере используй стрелки и пробел. Сайт сам определяет телефон и советует нужную версию.
+- **Сообщество включено**: приложения сразу подключаются к серверу Thrustbound. Создай аккаунт, чтобы публиковать уровни и ставить лайки. Уровни и аккаунты общие для iPhone, Android и браузера.
 
-Для сообщества нужен бесплатный сервер Supabase (настройка описана в README, раздел *Setting up the server*). Без сервера всё остальное, включая конструктор, работает офлайн.
-
-### Установка
-IPA **не подписан**. Его подпишет программа для установки с твоим Apple ID: **Sideloadly**, **AltStore / SideStore** или **TrollStore**. С бесплатным Apple ID приложение нужно обновлять раз в 7 дней. На iOS 16 и новее при первом запуске включи **Настройки → Конфиденциальность и безопасность → Режим разработчика**.
-
-**Требования:** iPhone с iOS 15 или новее.
+**Скачать**
+- iPhone: `Thrustbound.ipa` (не подписан): установи через **AltStore / SideStore**, **Sideloadly** или **TrollStore**. iOS 15 или новее.
+- Android: `Thrustbound.apk`: открой файл и разреши браузеру устанавливать приложения.

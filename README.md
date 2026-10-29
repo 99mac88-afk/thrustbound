@@ -2,7 +2,15 @@
 
 *Defy gravity. Stick the landing.*
 
-Thrustbound is a portrait iPhone game where you pilot a small rocket through 80 levels. Gravity always pulls you down. You steer with a stick, fire the engine with a **GAS** button, and have to touch down gently on the green landing pad without crashing or running out of fuel. You can also build your own levels in the **Level Maker**, publish them, and play, like and rate other pilots' levels in **Community**.
+Thrustbound is a portrait game where you pilot a small rocket through 80 levels. Gravity always pulls you down. You steer with a stick, fire the engine with a **GAS** button, and have to touch down gently on the green landing pad without crashing or running out of fuel. You can also build your own levels in the **Level Maker**, publish them, and play, like and rate other pilots' levels in **Community**.
+
+It runs on **iPhone** (native app), **Android** (APK) and **in the browser**:
+
+- **Play in the browser:** https://99mac88-afk.github.io/rocket/
+- **iPhone:** [Thrustbound.ipa](https://github.com/99mac88-afk/rocket/releases/latest/download/Thrustbound.ipa) (sideload, see below)
+- **Android:** [Thrustbound.apk](https://github.com/99mac88-afk/rocket/releases/latest/download/Thrustbound.apk)
+
+The website looks at the visitor's device and recommends the right download (the iPhone app on iPhones, the APK on Android, both on a computer). Levels and accounts are shared: a level published from an iPhone can be played on Android or the web, and the other way round.
 
 <p align="center"><img src="Thrustbound/Assets.xcassets/AppIcon.appiconset/AppIcon.png" width="160" alt="Thrustbound icon"></p>
 
@@ -57,7 +65,7 @@ Levels are saved on the iPhone (`Documents/MyLevels`).
 
 ### Setting up the server (one time, free)
 
-Community runs on a free [Supabase](https://supabase.com) project. All the rules (who can publish, delete, like, and the view and like counters) are enforced by the database itself in [`backend/schema.sql`](backend/schema.sql).
+The apps and the website ship connected to the Thrustbound server (`Thrustbound/Resources/backend.json`), so Community works out of the box. The steps below are for running a server of your own. Community runs on a free [Supabase](https://supabase.com) project. All the rules (who can publish, delete, like, and the view and like counters) are enforced by the database itself in [`backend/schema.sql`](backend/schema.sql).
 
 1. Create a free account at supabase.com and a **New project** (any name and region; save the database password somewhere).
 2. Open **SQL Editor → New query**, paste the whole of [`backend/schema.sql`](backend/schema.sql) and press **Run**. It is safe to run again after updates.
@@ -69,6 +77,32 @@ Community runs on a free [Supabase](https://supabase.com) project. All the rules
 6. **Create your account first** (*Community → Sign in → Create account*). The first account becomes the admin.
 
 `backend/test/` checks the rules in two ways. `run_tests.sh` uses plain PostgreSQL. `run_api_tests.sh` starts Supabase's own Postgres and Auth images in Docker, adds PostgREST, and replays every request the app makes: sign up, sign in, publishing, the New/Top/Most viewed/Mine lists, views, likes, permission checks and admin delete. The *Backend Check* workflow runs both on every change to `backend/`.
+
+## Play in the browser
+
+The web version (`web/`) is the same game: the same physics (a line-by-line port of `GameWorld.swift`), all 80 levels, the level maker, Community and both languages. On a phone it uses the same touch controls; on a computer use **← →** (or A/D) to steer, **↑ / W / Space** for gas, **↓** to point the nose up, **Esc** to pause and **R** to restart. Progress is saved in the browser.
+
+It is published to GitHub Pages by the *Build apps* workflow on every push to `main` (the repository has to be public, with *Settings → Pages → Source: GitHub Actions*). To try it locally:
+
+```sh
+python3 tools/build_web.py            # -> build/web
+python3 -m http.server -d build/web 8000
+```
+
+## Install on Android
+
+Download `Thrustbound.apk` from the latest release on your phone, open it, and allow your browser to install apps when Android asks. Android 7 or later.
+
+The Android app (`android/`) is a small native wrapper that runs the web version from inside the APK, so it works offline (Community needs the internet). The back button goes back a screen or pauses the game.
+
+**Android signing:** an Android app can only update over an older version signed with the same key. Add these repository secrets once (*Settings → Secrets and variables → Actions*) so every build is signed with your own key:
+
+```sh
+keytool -genkeypair -keystore thrustbound.keystore -alias thrustbound -keyalg RSA -keysize 2048 -validity 12000
+base64 -w0 thrustbound.keystore    # paste the output as ANDROID_KEYSTORE_BASE64
+```
+
+Then add `ANDROID_KEYSTORE_PASSWORD` (the password you chose) and `ANDROID_KEY_ALIAS` (`thrustbound`). Keep the keystore file and password somewhere safe and never commit them. Without these secrets the APK is signed with a temporary key: it installs fine, but to install a newer version you have to uninstall the old one first (which deletes saved progress).
 
 ## Install on your iPhone (sideload)
 
@@ -98,7 +132,9 @@ CI (`.github/workflows/ios.yml`) does the following on every push:
 1. generates the project,
 2. runs the unit tests on an iOS simulator (physics, landing, hazards, keys and doors, a check that the rocket can rest safely on every launch pad, and the level maker: grid tracing, every tool, undo, saving and the community data formats),
 3. builds a Release `.ipa` without code signing and uploads it as a workflow artifact,
-4. for a `v*` tag, or a manual run with a `release_tag`, publishes the IPA to GitHub Releases.
+4. builds the Android APK and the website (and runs the web tests),
+5. on `main`, publishes the website to GitHub Pages (public repositories),
+6. for a `v*` tag, or a manual run with a `release_tag`, publishes the IPA and the APK to GitHub Releases, each under a versioned name and a fixed one (`Thrustbound.ipa`, `Thrustbound.apk`) that the website links to.
 
 To cut a release: **Actions → iOS Build → Run workflow**, then enter a tag such as `v1.0.1`. Pushing a tag such as `git tag v1.0.1 && git push origin v1.0.1` does the same.
 
@@ -115,6 +151,8 @@ Thrustbound/
   Resources/      levels.json, sound effects, optional backend.json (community server)
   Assets.xcassets App icon and colours
 ThrustboundTests/ Unit tests
+web/              The browser version (plain JavaScript modules, no build step) and its tests
+android/          Android app: a WebView wrapper around the web version
 backend/          schema.sql for the community server, plus its tests
 tools/            Level DSL, validator, autopilot, icon and sound generators (Python)
 ```
