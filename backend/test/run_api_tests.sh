@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # Runs the real Supabase pieces the app talks to (Postgres image, Auth server,
 # PostgREST), applies backend/schema.sql and replays every request the app
-# makes (api_flow.py). Needs Docker, curl and python3.
+# makes (api_flow.py). A second Auth server has "Confirm email" on and sends its
+# codes to a local mail catcher (mail_sink.py) for the sign-up code tests.
+# Needs Docker, curl and python3 (and node for the website's client).
 #   bash backend/test/run_api_tests.sh
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -12,16 +14,20 @@ SECRET="local-test-jwt-secret-that-is-at-least-32-characters"
 NET=tb-api-test
 WORK="$(mktemp -d)"
 PGRST_PID=""
+SINK_PID=""
+SINK_PORT="${SINK_PORT:-2525}"
 
 cleanup() {
   [ -n "$PGRST_PID" ] && kill "$PGRST_PID" 2>/dev/null || true
-  docker rm -f tb-db tb-auth >/dev/null 2>&1 || true
+  [ -n "$SINK_PID" ] && kill "$SINK_PID" 2>/dev/null || true
+  docker rm -f tb-db tb-auth tb-auth-confirm >/dev/null 2>&1 || true
   docker network rm "$NET" >/dev/null 2>&1 || true
   rm -rf "$WORK"
 }
 trap cleanup EXIT
 cleanup_failed() {
   echo "----- auth log -----"; docker logs tb-auth 2>&1 | tail -n 40 || true
+  echo "----- confirm-email auth log -----"; docker logs tb-auth-confirm 2>&1 | tail -n 40 || true
   echo "----- postgrest log -----"; tail -n 40 "$WORK/postgrest.log" 2>/dev/null || true
 }
 trap 'cleanup_failed' ERR
@@ -54,6 +60,25 @@ for i in $(seq 1 60); do
   sleep 1
 done
 curl -sf http://127.0.0.1:59999/health >/dev/null
+
+# Same accounts database, but new accounts must enter the code from their email (like the live project).
+mkdir -p "$WORK/mail"
+python3 "$HERE/mail_sink.py" "$SINK_PORT" "$WORK/mail" > "$WORK/sink.log" 2>&1 &
+SINK_PID=$!
+docker run -d --name tb-auth-confirm --network "$NET" --add-host=host.docker.internal:host-gateway -p 127.0.0.1:59998:9999 \
+  -e GOTRUE_API_HOST=0.0.0.0 -e PORT=9999 -e API_EXTERNAL_URL=http://localhost:59998 \
+  -e GOTRUE_DB_DRIVER=postgres -e GOTRUE_DB_DATABASE_URL="postgres://supabase_auth_admin:postgres@tb-db:5432/postgres" \
+  -e GOTRUE_SITE_URL=http://localhost -e GOTRUE_JWT_SECRET="$SECRET" -e GOTRUE_JWT_EXP=3600 \
+  -e GOTRUE_JWT_AUD=authenticated -e GOTRUE_JWT_DEFAULT_GROUP_NAME=authenticated -e GOTRUE_JWT_ADMIN_ROLES=service_role \
+  -e GOTRUE_EXTERNAL_EMAIL_ENABLED=true -e GOTRUE_MAILER_AUTOCONFIRM=false -e GOTRUE_DISABLE_SIGNUP=false \
+  -e GOTRUE_SMTP_HOST=host.docker.internal -e GOTRUE_SMTP_PORT="$SINK_PORT" -e GOTRUE_SMTP_ADMIN_EMAIL=noreply@example.com \
+  -e GOTRUE_SMTP_SENDER_NAME=Thrustbound -e GOTRUE_SMTP_MAX_FREQUENCY=3s -e GOTRUE_RATE_LIMIT_EMAIL_SENT=1000 \
+  "$AUTH_IMAGE" >/dev/null
+for i in $(seq 1 60); do
+  curl -sf http://127.0.0.1:59998/health >/dev/null 2>&1 && break
+  sleep 1
+done
+curl -sf http://127.0.0.1:59998/health >/dev/null
 
 # Same as pasting schema.sql into the Supabase SQL editor (runs as "postgres"), twice to prove it can be re-run.
 for _ in 1 2; do
@@ -93,4 +118,6 @@ AUTH_URL=http://127.0.0.1:59999 REST_URL=http://127.0.0.1:53000 ANON_KEY="$ANON_
 # The website / Android app's own client code, against the same services.
 if command -v node >/dev/null 2>&1; then
   AUTH_URL=http://127.0.0.1:59999 REST_URL=http://127.0.0.1:53000 ANON_KEY="$ANON_KEY" node "$HERE/../../web/test/online-flow.mjs"
+  AUTH_URL=http://127.0.0.1:59998 REST_URL=http://127.0.0.1:53000 ANON_KEY="$ANON_KEY" MAIL_DIR="$WORK/mail" \
+    node "$HERE/../../web/test/confirm-flow.mjs"
 fi

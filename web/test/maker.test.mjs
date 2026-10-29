@@ -7,6 +7,8 @@ import {
   sampleLevel, setRock, isRock, MAX_ITEMS, MAX_ROWS, FUEL_MAX,
 } from '../js/editor-level.js';
 import { compile, problems, rockOutlines } from '../js/compiler.js';
+import { cleanCode, errorFrom, isCompleteCode } from '../js/online.js';
+import { L10n, waitSeconds } from '../js/i18n.js';
 
 const run = (w, seconds) => { for (let t = 0; t < seconds; t += Physics.step) w.step(Physics.step, { thrust: false, targetAngle: null }); };
 function basic(cols = 14, rows = 20) {
@@ -173,4 +175,34 @@ test('resize keeps what fits; sample level is playable', () => {
   const w = new GameWorld(lv);
   run(w, 3);
   assert.equal(w.status, 'flying');
+});
+
+test('email code helpers and messages', () => {
+  assert.equal(cleanCode(' 123 456\n'), '123456');
+  assert.equal(cleanCode('12-34-56-78-90-12'), '1234567890');
+  assert.equal(cleanCode('١٢٣abc'), '');
+  assert.ok(isCompleteCode('374768'));
+  assert.ok(isCompleteCode('12345678'));
+  assert.ok(!isCompleteCode('12345'));
+  assert.ok(!isCompleteCode('12345a'));
+  assert.equal(waitSeconds('For security purposes, you can only request this after 42 seconds.'), 42);
+  assert.equal(waitSeconds('email rate limit exceeded'), null);
+  const en = new L10n('en');
+  const ru = new L10n('ru');
+  // Replies captured from the Supabase Auth server with "Confirm email" on.
+  const text = (body, status, s = en) => s.onlineError(errorFrom(body, status));
+  const wrong = { code: 403, error_code: 'otp_expired', msg: 'Token has expired or is invalid' };
+  assert.match(text(wrong, 403), /code is wrong/);
+  assert.match(text(wrong, 403, ru), /Код неверный/);
+  assert.equal(text({ code: 429, error_code: 'over_email_send_rate_limit', msg: 'For security purposes, you can only request this after 52 seconds.' }, 429), 'Wait 52 s and try again.');
+  assert.match(text({ code: 429, error_code: 'over_email_send_rate_limit', msg: 'email rate limit exceeded' }, 429), /Too many emails/);
+  assert.match(text({ code: 400, error_code: 'email_address_not_authorized', msg: 'Email address not authorized' }, 400), /set up email/);
+  assert.match(text({ code: 500, error_code: 'unexpected_failure', msg: 'Error sending confirmation email' }, 500), /Couldn't send/);
+  assert.equal(errorFrom({ code: 400, error_code: 'email_not_confirmed', msg: 'Email not confirmed' }, 400).serverCode, 'email_not_confirmed');
+  for (const k of ['checkEmailTitle', 'codeLabel', 'codeHint', 'confirmCode', 'resendCode', 'codeResent', 'startOver']) {
+    assert.ok(en[k] && ru[k] && en[k] !== ru[k], k);
+  }
+  assert.ok(en.codeSentTo('a@b.co').includes('a@b.co') && ru.codeSentTo('a@b.co').includes('a@b.co'));
+  assert.notEqual(en.resendIn(9), ru.resendIn(9));
+  assert.notEqual(en.onlineError({ code: 'confirmEmail' }), ru.onlineError({ code: 'confirmEmail' }));
 });

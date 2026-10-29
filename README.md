@@ -59,7 +59,7 @@ Levels are saved on the iPhone (`Documents/MyLevels`).
 
 ## Community (accounts, likes and views)
 
-*Main menu → COMMUNITY* lists published levels in four tabs: **New**, **Top** (most likes), **Most viewed** and **Mine**. Open a level to see its views and likes, **PLAY** it (that counts a view), and **Like** it (once per account; tap again to unlike). You can also like a level from the screen you see after landing on it. Liking and publishing need an account (username, email and password). Browsing and playing don't.
+*Main menu → COMMUNITY* lists published levels in four tabs: **New**, **Top** (most likes), **Most viewed** and **Mine**. Open a level to see its views and likes, **PLAY** it (that counts a view), and **Like** it (once per account; tap again to unlike). You can also like a level from the screen you see after landing on it. Liking and publishing need an account (username, email and password). Browsing and playing don't. When the server has *Confirm email* on, new pilots get a 6-digit code by email and type it into the game to finish creating the account (*Send a new code* works once a minute; the game remembers the waiting sign-up if it's closed).
 
 **Admin:** the first account ever created on the server is the admin. Admins see a **Delete for everyone** button on every community level. Authors can delete their own levels too. Admins can make other players admins from the Supabase SQL editor with `select set_admin('username', true);` while signed in as an admin, or with `update profiles set is_admin = true where username = 'name';`.
 
@@ -69,14 +69,25 @@ The apps and the website ship connected to the Thrustbound server (`Thrustbound/
 
 1. Create a free account at supabase.com and a **New project** (any name and region; save the database password somewhere).
 2. Open **SQL Editor → New query**, paste the whole of [`backend/schema.sql`](backend/schema.sql) and press **Run**. It is safe to run again after updates.
-3. Open **Authentication → Sign In / Providers → Email** and turn **off** "Confirm email", so new pilots can play right after signing up. If you leave it on, players must click the link in their email before they can sign in.
+3. Decide whether new accounts confirm their email with a code (recommended, see [Email confirmation codes](#email-confirmation-codes) below). With **Authentication → Sign In / Providers → Email → Confirm email** off, accounts work right away.
 4. Open **Project Settings → API Keys** and copy the public key: the **anon** key (on the *Legacy API keys* tab) or the newer **publishable** key. Copy the **Project URL** too (*Project Settings → Data API*, it looks like `https://abcdefgh.supabase.co`). These are meant to be public, because the database rules protect everything. Never put the *service_role* or *secret* key in the app.
 5. Put them into the game, either way works:
    - **In the app**: *Community → Sign in (top right) → Server*, paste both and tap *Save server*. This works with any build, but every phone has to do it once.
    - **Built in**: add two repository secrets, `SUPABASE_URL` and `SUPABASE_ANON_KEY` (*GitHub → Settings → Secrets and variables → Actions*), then run the *iOS Build* workflow with a release tag. The IPA it builds connects automatically.
 6. **Create your account first** (*Community → Sign in → Create account*). The first account becomes the admin.
 
-`backend/test/` checks the rules in two ways. `run_tests.sh` uses plain PostgreSQL. `run_api_tests.sh` starts Supabase's own Postgres and Auth images in Docker, adds PostgREST, and replays every request the app makes: sign up, sign in, publishing, the New/Top/Most viewed/Mine lists, views, likes, permission checks and admin delete. The *Backend Check* workflow runs both on every change to `backend/`.
+### Email confirmation codes
+
+With *Confirm email* on, Supabase emails every new account a 6-digit code, and the apps and the website ask for it right after *Create account* (also when someone signs in before confirming). Do these steps **in this order**, because with *Confirm email* on, sign-ups fail if the email can't be sent:
+
+1. **Connect an email service (custom SMTP).** Supabase's built-in email only delivers to members of your Supabase team (so only to you) and only about 2 emails an hour. Create a free account at an email service, for example [Brevo](https://www.brevo.com) (300 emails a day free) or [Resend](https://resend.com) (needs a domain you own), verify the sender address it asks for, and copy its SMTP details. In Supabase open **Authentication → Emails → SMTP Settings**, turn on **Enable custom SMTP** and fill in the sender email (the verified one), sender name `Thrustbound`, host, port (587), username and password (Brevo: host `smtp-relay.brevo.com`, the login and SMTP key are under *SMTP & API*). Custom SMTP starts at 30 emails an hour; raise it in **Authentication → Rate Limits** if many pilots sign up at once.
+2. **Put the code in the email.** **Authentication → Emails → Templates → Confirm signup**: set the subject to `Thrustbound code / код: {{ .Token }}` and replace the body with [`backend/email/confirm-signup.html`](backend/email/confirm-signup.html) (English and Russian). Save. The default template only has a link, which the game doesn't use.
+3. **Turn on Authentication → Sign In / Providers → Email → Confirm email** and save.
+4. Test it with a second email address of yours: *Create account*, the code arrives, type it in. The *Server Check* workflow then shows `confirm email ON (good)`.
+
+Accounts created before you turned it on keep working. Codes work for an hour by default; an old code stops working once a new one is sent.
+
+`backend/test/` checks the rules in two ways. `run_tests.sh` uses plain PostgreSQL. `run_api_tests.sh` starts Supabase's own Postgres and Auth images in Docker, adds PostgREST, and replays every request the app makes: sign up, sign in, sign-up codes (a second Auth server with *Confirm email* on sends its emails to a small mail catcher, [`mail_sink.py`](backend/test/mail_sink.py)), publishing, the New/Top/Most viewed/Mine lists, views, likes, permission checks and admin delete. The *Backend Check* workflow runs both on every change to `backend/`.
 
 ## Play in the browser
 

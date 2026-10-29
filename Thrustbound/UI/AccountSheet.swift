@@ -13,6 +13,8 @@ struct AccountSheet: View {
     @State var password = ""
     @State var busy = false
     @State var errorText: String?
+    @State var infoText: String?
+    @State var code = ""
     @State var showServer = false
     @State var serverURL = ""
     @State var serverKey = ""
@@ -39,6 +41,8 @@ struct AccountSheet: View {
                         note(s.notConfiguredBody, icon: "server.rack", color: UIStyle.gold)
                     } else if account.isSignedIn {
                         profileCard
+                    } else if let pending = account.pending {
+                        codeStep(pending)
                     } else {
                         form
                     }
@@ -179,7 +183,14 @@ struct AccountSheet: View {
         defer { busy = false }
         do {
             if creating {
-                try await account.signUp(username: username, email: email, password: password)
+                let signedIn = try await account.signUp(username: username, email: email, password: password)
+                password = ""
+                guard signedIn else {
+                    // The server emailed a code; the code step shows next.
+                    code = ""
+                    infoText = nil
+                    return
+                }
             } else {
                 try await account.signIn(email: email, password: password)
             }
@@ -187,8 +198,123 @@ struct AccountSheet: View {
             community.reset()
             Haptics.success()
         } catch OnlineError.confirmEmail {
+            password = ""
+            code = ""
+            infoText = s.onlineError(OnlineError.confirmEmail)
+        } catch {
+            errorText = s.onlineError(error)
+        }
+    }
+
+    // MARK: - Code from the confirmation email
+
+    private func codeStep(_ pending: AccountStore.PendingSignUp) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 12) {
+                Image(systemName: "envelope.badge.fill")
+                    .font(.system(size: 28))
+                    .foregroundColor(UIStyle.cyan)
+                Text(s.checkEmailTitle)
+                    .font(UIStyle.font(22))
+                    .foregroundColor(.white)
+            }
+            Text(s.codeSentTo(pending.email))
+                .font(UIStyle.font(15, .medium))
+                .foregroundColor(Color.white.opacity(0.75))
+                .fixedSize(horizontal: false, vertical: true)
+
+            field(s.codeLabel, footnote: s.codeHint) {
+                TextField("123456", text: $code)
+                    .keyboardType(.numberPad)
+                    .textContentType(.oneTimeCode)
+                    .font(.system(size: 26, weight: .bold, design: .monospaced))
+                    .onChange(of: code) { typed in
+                        let clean = AccountStore.cleanCode(typed)
+                        if clean != typed { code = clean }
+                    }
+            }
+
+            if let info = infoText {
+                Text(info)
+                    .font(UIStyle.font(14, .semibold))
+                    .foregroundColor(UIStyle.green)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            if let error = errorText {
+                Text(error)
+                    .font(UIStyle.font(14, .semibold))
+                    .foregroundColor(UIStyle.red)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            let ready = AccountStore.isCompleteCode(code)
+            ActionButton(title: s.confirmCode, icon: "checkmark.seal.fill", kind: .primary) {
+                Task { await confirm() }
+            }
+            .disabled(busy || !ready)
+            .opacity(busy || !ready ? 0.5 : 1)
+            .overlay(busy ? ProgressView().tint(.black) : nil)
+
+            TimelineView(.periodic(from: Date(), by: 1)) { context in
+                let wait = account.resendWait(now: context.date)
+                Button {
+                    Task { await resend() }
+                } label: {
+                    Text(wait > 0 ? s.resendIn(wait) : s.resendCode)
+                        .font(UIStyle.font(15, .bold))
+                        .foregroundColor(wait > 0 ? Color.white.opacity(0.4) : UIStyle.cyan)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 6)
+                }
+                .disabled(busy || wait > 0)
+            }
+
+            Button {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    email = pending.email
+                    account.cancelPending()
+                    code = ""
+                    errorText = nil
+                    infoText = nil
+                }
+            } label: {
+                Text(s.startOver)
+                    .font(UIStyle.font(15, .bold))
+                    .foregroundColor(Color.white.opacity(0.6))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 6)
+            }
+        }
+    }
+
+    private func confirm() async {
+        guard !busy, AccountStore.isCompleteCode(code) else { return }
+        busy = true
+        errorText = nil
+        infoText = nil
+        defer { busy = false }
+        do {
+            try await account.confirmEmail(code: code)
+            code = ""
             creating = false
-            errorText = s.onlineError(OnlineError.confirmEmail)
+            community.reset()
+            Haptics.success()
+        } catch {
+            errorText = s.onlineError(error)
+            Haptics.failure()
+        }
+    }
+
+    private func resend() async {
+        guard !busy else { return }
+        busy = true
+        errorText = nil
+        infoText = nil
+        defer { busy = false }
+        do {
+            try await account.resendCode()
+            code = ""
+            infoText = s.codeResent
         } catch {
             errorText = s.onlineError(error)
         }

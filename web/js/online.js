@@ -86,6 +86,18 @@ export class SupabaseClient {
     return s;
   }
 
+  /** Finishes a sign-up with the code from the confirmation email. */
+  async verifyEmail(email, code) {
+    const s = this.session(await this.send('POST', '/auth/v1/verify', { json: { type: 'email', email, token: code } }));
+    if (!s) throw new OnlineError('server', 'Unexpected reply');
+    return s;
+  }
+
+  /** Emails a new sign-up code. The server answers the same for unknown or already confirmed addresses. */
+  async resendCode(email) {
+    await this.send('POST', '/auth/v1/resend', { json: { type: 'signup', email } });
+  }
+
   async refresh(refreshToken) {
     const s = this.session(await this.send('POST', '/auth/v1/token?grant_type=refresh_token', { json: { refresh_token: refreshToken } }));
     if (!s) throw new OnlineError('signInRequired');
@@ -115,7 +127,19 @@ class Emitter {
 const SERVER_KEY = 'tb.server.v1';
 const SESSION_KEY = 'tb.session.v1';
 const PROFILE_KEY = 'tb.profile.v1';
+const PENDING_KEY = 'tb.pending.v1';
 export const USERNAME_RE = /^[A-Za-z0-9_]{3,20}$/;
+/** How long to wait before offering to send another code. */
+export const RESEND_DELAY = 60000;
+
+/** Keeps only the digits of a typed or pasted code (Supabase codes have 6 to 10 digits). */
+export function cleanCode(text) {
+  return String(text || '').replace(/[^0-9]/g, '').slice(0, 10);
+}
+
+export function isCompleteCode(code) {
+  return /^[0-9]{6,10}$/.test(code);
+}
 
 export class AccountStore extends Emitter {
   constructor(bundled) {
@@ -127,12 +151,18 @@ export class AccountStore extends Emitter {
     this.session = null;
     this.profile = null;
     this.refreshing = null;
+    /** A new account waiting for the code from its confirmation email: {email, server, codeSentAt}. */
+    this.pending = null;
     const saved = storage.get(SESSION_KEY);
     if (saved && this.config && saved.server === this.config.url && saved.accessToken) {
       this.session = saved;
       const p = storage.get(PROFILE_KEY);
       if (p && p.user === saved.userID) this.profile = { username: p.username, isAdmin: !!p.admin };
       this.refreshProfile();
+    } else {
+      const p = storage.get(PENDING_KEY);
+      if (p && this.config && p.server === this.config.url && typeof p.email === 'string' &&
+          typeof p.codeSentAt === 'number' && Date.now() - p.codeSentAt < 2 * 86400000) this.pending = p;
     }
   }
 
@@ -162,23 +192,78 @@ export class AccountStore extends Emitter {
     this.emit();
   }
 
+  /** Resolves to false when the server emailed a code that has to be entered before the account works. */
   async signUp(username, email, password) {
     const client = this.client;
     if (!client) throw new OnlineError('notConfigured');
     const name = username.trim();
     if (!USERNAME_RE.test(name)) throw new OnlineError('badUsername');
     if (!(await client.usernameAvailable(name))) throw new OnlineError('usernameTaken');
-    const s = await client.signUp(email.trim(), password, name);
-    if (!s) throw new OnlineError('confirmEmail');
+    const mail = email.trim();
+    const s = await client.signUp(mail, password, name);
+    if (!s) {
+      this.setPending({ email: mail, server: client.base, codeSentAt: Date.now() });
+      return false;
+    }
+    this.store(s);
+    await this.refreshProfile();
+    return true;
+  }
+
+  /** Throws 'confirmEmail' (after asking for a fresh code) when the account's email isn't confirmed yet. */
+  async signIn(email, password) {
+    const client = this.client;
+    if (!client) throw new OnlineError('notConfigured');
+    const mail = email.trim();
+    let s;
+    try {
+      s = await client.signIn(mail, password);
+    } catch (e) {
+      if (e.serverCode !== 'email_not_confirmed') throw e;
+      // The old code may have run out, so send a new one right away.
+      let sent = true;
+      try { await client.resendCode(mail); } catch { sent = false; }
+      this.setPending({ email: mail, server: client.base, codeSentAt: sent ? Date.now() : 0 });
+      throw new OnlineError('confirmEmail');
+    }
     this.store(s);
     await this.refreshProfile();
   }
 
-  async signIn(email, password) {
+  /** Finishes a sign-up with the code from the email and signs in. */
+  async confirmEmail(code) {
     const client = this.client;
     if (!client) throw new OnlineError('notConfigured');
-    this.store(await client.signIn(email.trim(), password));
+    if (!this.pending) throw new OnlineError('signInRequired');
+    this.store(await client.verifyEmail(this.pending.email, cleanCode(code)));
     await this.refreshProfile();
+  }
+
+  async resendCode() {
+    const client = this.client;
+    if (!client) throw new OnlineError('notConfigured');
+    const p = this.pending;
+    if (!p) throw new OnlineError('signInRequired');
+    await client.resendCode(p.email);
+    this.setPending({ ...p, codeSentAt: Date.now() });
+  }
+
+  /** Seconds until another code may be requested (0 when it can be sent now). */
+  resendWait(now = Date.now()) {
+    if (!this.pending) return 0;
+    return Math.max(0, Math.ceil((RESEND_DELAY - (now - this.pending.codeSentAt)) / 1000));
+  }
+
+  /** Forgets the account that was waiting for its code (to use another email or sign in instead). */
+  cancelPending() {
+    this.setPending(null);
+  }
+
+  setPending(p) {
+    this.pending = p;
+    if (p) storage.set(PENDING_KEY, p);
+    else storage.remove(PENDING_KEY);
+    this.emit();
   }
 
   async signOut() {
@@ -192,6 +277,10 @@ export class AccountStore extends Emitter {
   store(s) {
     this.session = s;
     storage.set(SESSION_KEY, s);
+    if (this.pending) {
+      this.pending = null;
+      storage.remove(PENDING_KEY);
+    }
     this.emit();
   }
 
@@ -199,8 +288,10 @@ export class AccountStore extends Emitter {
     this.session = null;
     this.profile = null;
     this.refreshing = null;
+    this.pending = null;
     storage.remove(SESSION_KEY);
     storage.remove(PROFILE_KEY);
+    storage.remove(PENDING_KEY);
   }
 
   /** A fresh access token, refreshed first when it is about to run out. */

@@ -27,6 +27,9 @@ struct CommunityView: View {
         .task(id: tab) {
             await community.loadIfNeeded(tab)
         }
+        .onAppear {
+            if app.launch.screen == "account-code" { showAccount = true }
+        }
         .onChange(of: account.userID) { _ in
             community.reset()
             Task { await community.reload(tab) }

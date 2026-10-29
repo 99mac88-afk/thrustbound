@@ -474,6 +474,47 @@ final class MakerTests: XCTestCase {
                        "An account with this email already exists.")
     }
 
+    func testEmailCodeHelpers() {
+        XCTAssertEqual(AccountStore.cleanCode(" 123 456\n"), "123456")
+        XCTAssertEqual(AccountStore.cleanCode("12-34-56-78-90-12"), "1234567890")
+        XCTAssertEqual(AccountStore.cleanCode("١٢٣abc"), "")
+        XCTAssertTrue(AccountStore.isCompleteCode("374768"))
+        XCTAssertTrue(AccountStore.isCompleteCode("12345678"))
+        XCTAssertFalse(AccountStore.isCompleteCode("12345"))
+        XCTAssertFalse(AccountStore.isCompleteCode("12345a"))
+        XCTAssertEqual(L10n.waitSeconds("For security purposes, you can only request this after 42 seconds."), 42)
+        XCTAssertEqual(L10n.waitSeconds("For security purposes, you can only request this after 1 seconds."), 1)
+        XCTAssertNil(L10n.waitSeconds("email rate limit exceeded"))
+    }
+
+    func testEmailCodeErrorsAreExplained() {
+        func text(_ json: String, _ status: Int, _ lang: Lang = .en) -> String {
+            L10n(lang).onlineError(SupabaseClient.error(from: Data(json.utf8), status: status))
+        }
+        // Replies captured from the Supabase Auth server with "Confirm email" on.
+        let wrong = #"{"code":403,"error_code":"otp_expired","msg":"Token has expired or is invalid"}"#
+        XCTAssertTrue(text(wrong, 403).contains("code"))
+        XCTAssertTrue(text(wrong, 403, .ru).contains("Код"))
+        let soon = #"{"code":429,"error_code":"over_email_send_rate_limit","msg":"For security purposes, you can only request this after 52 seconds."}"#
+        XCTAssertEqual(text(soon, 429), "Wait 52 s and try again.")
+        XCTAssertTrue(text(#"{"code":429,"error_code":"over_email_send_rate_limit","msg":"email rate limit exceeded"}"#, 429).contains("Too many emails"))
+        XCTAssertTrue(text(#"{"code":400,"error_code":"email_address_not_authorized","msg":"Email address not authorized"}"#, 400).contains("set up email"))
+        XCTAssertTrue(text(#"{"code":500,"error_code":"unexpected_failure","msg":"Error sending confirmation email"}"#, 500).contains("Couldn't send"))
+        XCTAssertEqual(SupabaseClient.error(from: Data(#"{"code":400,"error_code":"email_not_confirmed","msg":"Email not confirmed"}"#.utf8), status: 400),
+                       .server(code: "email_not_confirmed", message: "Email not confirmed"))
+        let en = L10n(.en)
+        let ru = L10n(.ru)
+        XCTAssertTrue(en.codeSentTo("a@b.co").contains("a@b.co"))
+        XCTAssertTrue(ru.codeSentTo("a@b.co").contains("a@b.co"))
+        for (a, b) in [(en.checkEmailTitle, ru.checkEmailTitle), (en.codeLabel, ru.codeLabel), (en.codeHint, ru.codeHint),
+                       (en.confirmCode, ru.confirmCode), (en.resendCode, ru.resendCode), (en.resendIn(9), ru.resendIn(9)),
+                       (en.codeResent, ru.codeResent), (en.startOver, ru.startOver),
+                       (en.onlineError(OnlineError.confirmEmail), ru.onlineError(OnlineError.confirmEmail))] {
+            XCTAssertFalse(a.isEmpty)
+            XCTAssertNotEqual(a, b)
+        }
+    }
+
     func testBackendConfig() {
         XCTAssertTrue(BackendConfig(url: "https://abc.supabase.co/", anonKey: "k").isUsable)
         XCTAssertEqual(BackendConfig(url: "https://abc.supabase.co//", anonKey: "k").baseURL?.absoluteString, "https://abc.supabase.co")

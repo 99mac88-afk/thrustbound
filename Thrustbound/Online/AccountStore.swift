@@ -8,11 +8,19 @@ final class AccountStore: ObservableObject {
         let isAdmin: Bool
     }
 
+    /// A new account waiting for the code from its confirmation email.
+    struct PendingSignUp: Codable, Equatable {
+        let email: String
+        let server: String
+        var codeSentAt: Date
+    }
+
     @Published private(set) var config: BackendConfig?
     @Published private(set) var session: AuthSession?
     @Published private(set) var profile: Profile?
     /// True when the server was typed in by the player instead of built into the app.
     @Published private(set) var usingCustomServer = false
+    @Published private(set) var pending: PendingSignUp?
 
     private let bundledConfig: BackendConfig?
     private var refreshTask: Task<AuthSession, Error>?
@@ -20,8 +28,11 @@ final class AccountStore: ObservableObject {
     private static let serverKey = "community.server.v1"
     private static let profileKey = "community.profile.v1"
     private static let sessionAccount = "session"
+    private static let pendingKey = "community.pending.v1"
 
     nonisolated static let usernamePattern = "^[A-Za-z0-9_]{3,20}$"
+    /// How long to wait before offering to send another code.
+    nonisolated static let resendDelay: TimeInterval = 60
 
     init(bundled: BackendConfig? = BackendConfig.bundled()) {
         bundledConfig = bundled
@@ -43,6 +54,10 @@ final class AccountStore: ObservableObject {
         }
         if session != nil {
             Task { await refreshProfile() }
+        } else if let data = defaults.data(forKey: AccountStore.pendingKey),
+                  let saved = try? JSONDecoder().decode(PendingSignUp.self, from: data),
+                  saved.server == client?.baseString, saved.codeSentAt.timeIntervalSinceNow > -2 * 86400 {
+            pending = saved
         }
     }
 
@@ -55,6 +70,15 @@ final class AccountStore: ObservableObject {
 
     nonisolated static func isValidUsername(_ name: String) -> Bool {
         name.range(of: usernamePattern, options: .regularExpression) != nil
+    }
+
+    /// Keeps only the digits of a typed or pasted code (Supabase codes have 6 to 10 digits).
+    nonisolated static func cleanCode(_ text: String) -> String {
+        String(text.filter { $0.isASCII && $0.isNumber }.prefix(10))
+    }
+
+    nonisolated static func isCompleteCode(_ code: String) -> Bool {
+        code.count >= 6 && code.count <= 10 && code.allSatisfy { $0.isASCII && $0.isNumber }
     }
 
     // MARK: - Server
@@ -79,24 +103,80 @@ final class AccountStore: ObservableObject {
 
     // MARK: - Signing in and out
 
-    func signUp(username: String, email: String, password: String) async throws {
+    /// Returns false when the server emailed a code that has to be entered before the account works.
+    @discardableResult
+    func signUp(username: String, email: String, password: String) async throws -> Bool {
         guard let client = client else { throw OnlineError.notConfigured }
         let name = username.trimmingCharacters(in: .whitespacesAndNewlines)
         guard AccountStore.isValidUsername(name) else { throw OnlineError.badUsername }
         guard try await client.usernameAvailable(name) else { throw OnlineError.usernameTaken }
         let email = email.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let s = try await client.signUp(email: email, password: password, username: name) else {
+            setPending(PendingSignUp(email: email, server: client.baseString, codeSentAt: Date()))
+            return false
+        }
+        store(s)
+        await refreshProfile()
+        return true
+    }
+
+    /// Throws `confirmEmail` (after asking for a fresh code) when the account's email isn't confirmed yet.
+    func signIn(email: String, password: String) async throws {
+        guard let client = client else { throw OnlineError.notConfigured }
+        let email = email.trimmingCharacters(in: .whitespacesAndNewlines)
+        let s: AuthSession
+        do {
+            s = try await client.signIn(email: email, password: password)
+        } catch OnlineError.server(let code, _) where code == "email_not_confirmed" {
+            // The old code may have run out, so send a new one right away.
+            let sent = (try? await client.resendCode(email)) != nil
+            setPending(PendingSignUp(email: email, server: client.baseString, codeSentAt: sent ? Date() : .distantPast))
             throw OnlineError.confirmEmail
         }
         store(s)
         await refreshProfile()
     }
 
-    func signIn(email: String, password: String) async throws {
+    /// Finishes a sign-up with the code from the email and signs in.
+    func confirmEmail(code: String) async throws {
         guard let client = client else { throw OnlineError.notConfigured }
-        let s = try await client.signIn(email: email.trimmingCharacters(in: .whitespacesAndNewlines), password: password)
+        guard let p = pending else { throw OnlineError.signInRequired }
+        let s = try await client.verifyEmail(p.email, code: AccountStore.cleanCode(code))
         store(s)
         await refreshProfile()
+    }
+
+    func resendCode() async throws {
+        guard let client = client else { throw OnlineError.notConfigured }
+        guard var p = pending else { throw OnlineError.signInRequired }
+        try await client.resendCode(p.email)
+        p.codeSentAt = Date()
+        setPending(p)
+    }
+
+    /// Seconds until another code may be requested (0 when it can be sent now).
+    func resendWait(now: Date = Date()) -> Int {
+        guard let p = pending else { return 0 }
+        return max(0, Int((AccountStore.resendDelay - now.timeIntervalSince(p.codeSentAt)).rounded(.up)))
+    }
+
+    /// Screenshots only: shows the code step for a made-up address without contacting the server.
+    func previewCodeStep(email: String) {
+        pending = PendingSignUp(email: email, server: client?.baseString ?? "", codeSentAt: Date())
+    }
+
+    /// Forgets the account that was waiting for its code (to use another email or sign in instead).
+    func cancelPending() {
+        setPending(nil)
+    }
+
+    private func setPending(_ p: PendingSignUp?) {
+        pending = p
+        if let p = p, let data = try? JSONEncoder().encode(p) {
+            defaults.set(data, forKey: AccountStore.pendingKey)
+        } else {
+            defaults.removeObject(forKey: AccountStore.pendingKey)
+        }
     }
 
     func signOut() async {
@@ -108,6 +188,7 @@ final class AccountStore: ObservableObject {
 
     private func store(_ s: AuthSession) {
         session = s
+        if pending != nil { setPending(nil) }
         if let data = try? JSONEncoder().encode(s) { SecureStore.save(data, account: AccountStore.sessionAccount) }
     }
 
@@ -116,6 +197,7 @@ final class AccountStore: ObservableObject {
         refreshTask = nil
         session = nil
         profile = nil
+        setPending(nil)
         SecureStore.delete(account: AccountStore.sessionAccount)
         defaults.removeObject(forKey: AccountStore.profileKey)
     }

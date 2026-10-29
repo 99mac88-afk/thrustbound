@@ -1,25 +1,29 @@
-## Thrustbound 2.1 🚀
+## Thrustbound 2.2 🚀
 
-**New in 2.1**
-- **Android app**: download `Thrustbound.apk` below, open it on your phone and allow the install. Android 7 or later.
-- **Play in the browser**: https://99mac88-afk.github.io/rocket/. On a phone it uses the same touch controls; on a computer use the arrow keys and Space. The website detects your phone and recommends the right app.
-- **Community is switched on**: the apps now connect to the Thrustbound server out of the box. Create an account to publish levels and like other pilots' levels. Levels and accounts are shared between iPhone, Android and the web.
+**New in 2.2**
+- **Email codes for new accounts**: after *Create account* the game emails you a 6-digit code. Type it in to finish. Your iPhone can fill it in from Mail. Didn't get it? Check Spam, or tap *Send a new code* (once a minute). If you close the game, it remembers you're waiting for a code. Signing in before confirming sends a fresh code.
+- Clearer messages when a code is wrong or expired, or when emails are being sent too fast.
 
 **Downloads**
 - iPhone: `Thrustbound.ipa`. It is unsigned, so install it with **AltStore / SideStore**, **Sideloadly** or **TrollStore**. iOS 15 or later. With a free Apple ID it must be refreshed every 7 days, and on iOS 16+ you need to turn on **Settings → Privacy & Security → Developer Mode**.
-- Android: `Thrustbound.apk`. Open the file and allow your browser to install apps when Android asks.
+- Android: `Thrustbound.apk`. Open the file and allow your browser to install apps when Android asks. Android 7 or later.
+- Browser: https://99mac88-afk.github.io/rocket/
 
-Also includes everything from 2.0: 80 levels in 8 worlds (worlds 5–8 have tight fuel tanks), the Level Maker, and Community with views, likes and admin tools.
+Also includes everything from 2.1 and 2.0:
+- 80 levels in 8 worlds (worlds 5–8 have tight fuel tanks)
+- The Level Maker
+- Community with views, likes and admin tools
+- The Android app and the browser version, shared accounts and levels everywhere
 
 ---
 
-## Thrustbound 2.1 🚀 (по-русски)
+## Thrustbound 2.2 🚀 (по-русски)
 
-**Новое в 2.1**
-- **Приложение для Android**: скачай `Thrustbound.apk` ниже, открой его на телефоне и разреши установку. Android 7 или новее.
-- **Игра в браузере**: https://99mac88-afk.github.io/rocket/. На телефоне управление то же, на компьютере используй стрелки и пробел. Сайт сам определяет телефон и советует нужную версию.
-- **Сообщество включено**: приложения сразу подключаются к серверу Thrustbound. Создай аккаунт, чтобы публиковать уровни и ставить лайки. Уровни и аккаунты общие для iPhone, Android и браузера.
+**Новое в 2.2**
+- **Код из письма для новых аккаунтов**: после «Создать аккаунт» игра присылает на почту 6-значный код. Введи его, чтобы закончить. iPhone может подставить код из «Почты» сам. Письма нет? Загляни в «Спам» или нажми «Отправить новый код» (раз в минуту). Если закрыть игру, она помнит, что ты ждёшь код. Если войти, не подтвердив почту, придёт новый код.
+- Понятные сообщения, если код неверный или устарел, или если письма отправляются слишком часто.
 
 **Скачать**
 - iPhone: `Thrustbound.ipa` (не подписан): установи через **AltStore / SideStore**, **Sideloadly** или **TrollStore**. iOS 15 или новее.
 - Android: `Thrustbound.apk`: открой файл и разреши браузеру устанавливать приложения.
+- Браузер: https://99mac88-afk.github.io/rocket/

@@ -218,6 +218,10 @@ input { font: inherit; -webkit-user-select: text; user-select: text; }
 .field .foot { font-size: 12px; font-weight: 600; color: rgba(255, 255, 255, .45); margin-top: 4px; }
 .note { display: flex; gap: 10px; align-items: flex-start; padding: 14px; border-radius: 14px; font-size: 14px; font-weight: 600; line-height: 1.35; }
 .error-text { color: var(--red); font-size: 14px; font-weight: 700; }
+.info-text { color: var(--green); font-size: 14px; font-weight: 700; }
+.link-btn.quiet { color: rgba(255, 255, 255, .6); font-size: 15px; }
+.link-btn.waiting { color: rgba(255, 255, 255, .4); pointer-events: none; }
+.field input.code-input { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 26px; letter-spacing: 6px; }
 .section-title { font-size: 12px; font-weight: 900; letter-spacing: 1.2px; color: rgba(255, 255, 255, .5); text-transform: uppercase; margin: 0 0 8px; }
 
 .toast { position: fixed; left: 50%; top: calc(70px + var(--safe-top)); transform: translateX(-50%); z-index: 60; background: var(--gold); color: #000;

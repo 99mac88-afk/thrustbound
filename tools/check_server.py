@@ -75,13 +75,15 @@ st, _, body = get("/auth/v1/settings")
 if st == 200:
     autoconfirm = body.get("mailer_autoconfirm")
     print(f"ok   auth settings: email sign-up {'on' if body.get('external', {}).get('email') else 'OFF'}, "
-          f"confirm email {'off (good)' if autoconfirm else 'ON'}, sign-ups {'disabled' if body.get('disable_signup') else 'allowed'}")
+          f"confirm email {'off' if autoconfirm else 'ON (good)'}, sign-ups {'disabled' if body.get('disable_signup') else 'allowed'}")
     if not body.get("external", {}).get("email"):
         problems.append("Email sign-in is turned off in Authentication -> Sign In / Providers")
     if body.get("disable_signup"):
         problems.append("Sign-ups are disabled in Authentication settings")
-    if not autoconfirm:
-        print("     new players must click the link in their confirmation email before they can sign in")
+    if autoconfirm:
+        print("     new accounts work right away; turn on \"Confirm email\" so players must enter the code emailed to them")
+    else:
+        print("     new players enter the code from their confirmation email (the template needs {{ .Token }})")
 else:
     problems.append("auth settings not readable")
     print(f"FAIL auth settings -> {st} {body}")

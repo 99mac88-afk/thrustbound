@@ -244,6 +244,23 @@ extension L10n {
         t("An account lets you publish levels and like other pilots' levels.",
           "С аккаунтом можно публиковать уровни и ставить лайки уровням других пилотов.")
     }
+    var checkEmailTitle: String { t("Check your email", "Проверь почту") }
+    func codeSentTo(_ email: String) -> String {
+        t("We sent a confirmation code to \(email). Enter it here to finish creating your account.",
+          "Мы отправили код подтверждения на \(email). Введи его здесь, чтобы завершить создание аккаунта.")
+    }
+    var codeLabel: String { t("Code from the email", "Код из письма") }
+    var codeHint: String {
+        t("Can't find it? Look in Spam. If this email already has an account, start over and sign in instead.",
+          "Не видно письма? Загляни в «Спам». Если на эту почту уже есть аккаунт, начни заново и просто войди.")
+    }
+    var confirmCode: String { t("CONFIRM EMAIL", "ПОДТВЕРДИТЬ ПОЧТУ") }
+    var resendCode: String { t("Send a new code", "Отправить новый код") }
+    func resendIn(_ seconds: Int) -> String {
+        t("Send a new code in \(seconds) s", "Новый код — через \(seconds) с")
+    }
+    var codeResent: String { t("A new code is on its way.", "Новый код уже в пути.") }
+    var startOver: String { t("Start over", "Начать заново") }
     var serverTitle: String { t("Server", "Сервер") }
     var serverURL: String { t("Project URL (https://…supabase.co)", "Адрес проекта (https://…supabase.co)") }
     var serverKey: String { t("Public key (anon or publishable)", "Публичный ключ (anon или publishable)") }
@@ -258,6 +275,12 @@ extension L10n {
     var serverBuiltIn: String { t("Using the built-in server", "Используется встроенный сервер") }
     var serverNone: String { t("No server yet", "Сервер не задан") }
 
+    /// "For security purposes, you can only request this after 42 seconds." → 42
+    static func waitSeconds(_ message: String) -> Int? {
+        guard let r = message.range(of: #"after (\d+) seconds?"#, options: .regularExpression) else { return nil }
+        return Int(message[r].filter(\.isNumber))
+    }
+
     func onlineError(_ e: Error) -> String {
         guard let e = e as? OnlineError else { return t("Something went wrong.", "Что-то пошло не так.") }
         switch e {
@@ -265,7 +288,7 @@ extension L10n {
         case .offline: return t("No connection. Check your internet and try again.", "Нет соединения. Проверь интернет и попробуй ещё раз.")
         case .signInRequired: return t("Please sign in again.", "Войди в аккаунт ещё раз.")
         case .confirmEmail:
-            return t("Check your inbox and confirm your email, then sign in.", "Проверь почту, подтверди адрес и затем войди.")
+            return t("Your email isn't confirmed yet. We sent you a code.", "Почта ещё не подтверждена. Мы отправили тебе код.")
         case .usernameTaken: return t("That username is already taken.", "Это имя уже занято.")
         case .badUsername: return usernameRules
         case .badLevel: return levelBroken
@@ -280,9 +303,23 @@ extension L10n {
                 return t("That email address doesn't look right.", "Похоже, адрес почты указан неверно.")
             case "email_not_confirmed":
                 return t("Confirm your email first (check your inbox).", "Сначала подтверди почту (проверь входящие).")
-            case "over_request_rate_limit", "over_email_send_rate_limit":
+            case "otp_expired":
+                return t("That code is wrong or has expired. Check it or send a new one.",
+                         "Код неверный или устарел. Проверь его или запроси новый.")
+            case "email_address_not_authorized":
+                return t("The server can't send email to this address yet. Its owner needs to set up email sending.",
+                         "Сервер пока не может отправлять письма на этот адрес. Владельцу нужно настроить отправку почты.")
+            case "over_email_send_rate_limit":
+                if let n = L10n.waitSeconds(message) {
+                    return t("Wait \(n) s and try again.", "Подожди \(n) с и попробуй снова.")
+                }
+                return t("Too many emails were sent. Try again later.", "Отправлено слишком много писем. Попробуй позже.")
+            case "over_request_rate_limit":
                 return t("Too many tries. Wait a minute and try again.", "Слишком много попыток. Подожди минуту.")
             default:
+                if message.localizedCaseInsensitiveContains("error sending") {
+                    return t("Couldn't send the email. Try again later.", "Не удалось отправить письмо. Попробуй позже.")
+                }
                 if message.contains("Daily publish limit") {
                     return t("You can publish up to 20 levels a day.", "Можно публиковать до 20 уровней в день.")
                 }

@@ -2,7 +2,7 @@
 import { html, onAction, raw, setHTML, sheet, dialog } from './dom.js';
 import { icon } from './icons.js';
 import { compile } from './compiler.js';
-import { TABS, USERNAME_RE } from './online.js';
+import { TABS, USERNAME_RE, cleanCode, isCompleteCode } from './online.js';
 import { haptics, sound } from './audio.js';
 
 export class CommunityScreen {
@@ -241,7 +241,7 @@ export function mountLikeButton(container, app, level) {
 export function openAccount(app) {
   const s = app.s;
   const a = app.account;
-  const state = { creating: true, username: '', email: '', password: '', busy: false, error: '', showServer: !a.isConfigured, serverURL: a.usingCustomServer ? a.config.url : '', serverKey: a.usingCustomServer ? a.config.anonKey : '', serverNote: '' };
+  const state = { creating: true, username: '', email: '', password: '', code: '', busy: false, error: '', info: '', showServer: !a.isConfigured, serverURL: a.usingCustomServer ? a.config.url : '', serverKey: a.usingCustomServer ? a.config.anonKey : '', serverNote: '' };
   if (a.isSignedIn) a.refreshProfile();
   sheet((el, close) => {
     const off = a.on(() => { if (el.isConnected) render(); else off(); });
@@ -264,6 +264,20 @@ export function openAccount(app) {
             ${a.session.email ? html`<div class="muted small-text">${a.session.email}</div>` : ''}</div></div>
           ${a.isAdmin ? html`<div class="note" style="background:rgba(255,225,77,.1)">${raw(icon('shield', 18, 'gold'))}<span>${s.adminNote}</span></div>` : ''}
           <button class="btn" data-act="signout">${raw(icon('signout', 17))}<span>${s.signOut}</span></button></div>`;
+      } else if (a.pending) {
+        const wait = a.resendWait();
+        body = html`<div class="stack">
+          <div style="display:flex;gap:12px;align-items:center"><span class="cyan">${raw(icon('envelope', 30))}</span>
+            <h3 style="margin:0;font-size:22px;font-weight:900">${s.checkEmailTitle}</h3></div>
+          <p class="muted" style="margin:0;font-size:15px">${s.codeSentTo(a.pending.email)}</p>
+          <div class="field"><label>${s.codeLabel}</label>
+            <input name="code" class="code-input" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="10" autocomplete="one-time-code" placeholder="123456" value="${state.code}">
+            <div class="foot">${s.codeHint}</div></div>
+          ${state.info ? html`<div class="info-text">${state.info}</div>` : ''}
+          ${state.error ? html`<div class="error-text">${state.error}</div>` : ''}
+          <button class="btn primary confirm ${state.busy || !isCompleteCode(state.code) ? 'disabled' : ''}" data-act="confirm">${raw(icon('seal', 17))}<span>${s.confirmCode}</span></button>
+          <button class="link-btn resend ${state.busy || wait > 0 ? 'waiting' : ''}" data-act="resend">${wait > 0 ? s.resendIn(wait) : s.resendCode}</button>
+          <button class="link-btn quiet" data-act="startOver">${s.startOver}</button></div>`;
       } else {
         body = html`<div class="stack">
           <p class="muted" style="margin:0;font-size:15px">${s.accountPitch}</p>
@@ -292,16 +306,37 @@ export function openAccount(app) {
         </div>`);
     };
     render();
+    const focusCode = () => {
+      const input = el.querySelector('.code-input');
+      if (input) input.focus();
+    };
+    // Counts down on the "send a new code" button without redrawing the sheet (which would drop the keyboard).
+    const timer = setInterval(() => {
+      if (!el.isConnected) { clearInterval(timer); return; }
+      const btn = el.querySelector('.resend');
+      if (!btn || !a.pending) return;
+      const wait = a.resendWait();
+      const text = wait > 0 ? s.resendIn(wait) : s.resendCode;
+      if (btn.textContent !== text) btn.textContent = text;
+      btn.classList.toggle('waiting', state.busy || wait > 0);
+    }, 1000);
     el.addEventListener('input', (e) => {
       const t = e.target;
-      if (t.name in state) {
+      if (t.name === 'code') {
+        state.code = cleanCode(t.value);
+        if (t.value !== state.code) t.value = state.code;
+        const btn = el.querySelector('.confirm');
+        if (btn) btn.classList.toggle('disabled', state.busy || !isCompleteCode(state.code));
+      } else if (t.name in state) {
         state[t.name] = t.value;
         const btn = el.querySelector('.submit');
         if (btn) btn.classList.toggle('disabled', state.busy || !canSubmit());
       }
     });
     el.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' && e.target.tagName === 'INPUT' && !a.isSignedIn && a.isConfigured && canSubmit()) submit();
+      if (e.key !== 'Enter' || e.target.tagName !== 'INPUT') return;
+      if (e.target.name === 'code') confirm();
+      else if (!a.isSignedIn && !a.pending && a.isConfigured && canSubmit()) submit();
     });
     const submit = async () => {
       if (state.busy || !canSubmit()) return;
@@ -309,26 +344,91 @@ export function openAccount(app) {
       state.error = '';
       render();
       try {
-        if (state.creating) await a.signUp(state.username, state.email, state.password);
-        else await a.signIn(state.email, state.password);
+        if (state.creating) {
+          const signedIn = await a.signUp(state.username, state.email, state.password);
+          state.password = '';
+          if (!signedIn) {
+            // The server emailed a code; the code step shows next.
+            state.code = '';
+            state.info = '';
+            state.busy = false;
+            render();
+            focusCode();
+            return;
+          }
+        } else {
+          await a.signIn(state.email, state.password);
+        }
         state.password = '';
         app.community.reset();
         haptics.success();
       } catch (err) {
-        if (err.code === 'confirmEmail') state.creating = false;
+        if (err.code === 'confirmEmail') {
+          state.password = '';
+          state.code = '';
+          state.info = s.onlineError(err);
+        } else {
+          state.error = s.onlineError(err);
+        }
+      }
+      state.busy = false;
+      render();
+      if (a.pending) focusCode();
+    };
+    const confirm = async () => {
+      if (state.busy || !a.pending || !isCompleteCode(state.code)) return;
+      state.busy = true;
+      state.error = '';
+      state.info = '';
+      render();
+      try {
+        await a.confirmEmail(state.code);
+        state.code = '';
+        state.creating = false;
+        app.community.reset();
+        haptics.success();
+      } catch (err) {
+        state.error = s.onlineError(err);
+        haptics.failure();
+      }
+      state.busy = false;
+      render();
+    };
+    const resend = async () => {
+      if (state.busy || !a.pending || a.resendWait() > 0) return;
+      state.busy = true;
+      state.error = '';
+      state.info = '';
+      render();
+      try {
+        await a.resendCode();
+        state.code = '';
+        state.info = s.codeResent;
+      } catch (err) {
         state.error = s.onlineError(err);
       }
       state.busy = false;
       render();
+      focusCode();
     };
     el.addEventListener('click', async (e) => {
       const t = e.target.closest('[data-act]');
       if (!t) return;
       sound.play('click', 0.6);
       switch (t.dataset.act) {
-        case 'close': off(); close(); break;
+        case 'close': off(); clearInterval(timer); close(); break;
         case 'switch': state.creating = !state.creating; state.error = ''; render(); break;
         case 'submit': submit(); break;
+        case 'confirm': confirm(); break;
+        case 'resend': resend(); break;
+        case 'startOver':
+          if (a.pending) state.email = a.pending.email;
+          state.code = '';
+          state.error = '';
+          state.info = '';
+          a.cancelPending();
+          render();
+          break;
         case 'signout': await a.signOut(); app.community.reset(); render(); break;
         case 'server': state.showServer = !state.showServer; render(); break;
         case 'saveServer':

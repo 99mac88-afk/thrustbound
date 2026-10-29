@@ -159,6 +159,9 @@ final class AppModel: ObservableObject {
         case "howto": screen = .howTo
         case "settings": screen = .settings
         case "community": screen = .community
+        case "account-code":
+            account.previewCodeStep(email: "pilot@example.com")
+            screen = .community
         case "maker": screen = .maker
         case "editor":
             let sample = maker.levels.first { $0.name == LevelStore.sampleName } ?? maker.addSample(theme: launch.level ?? 0)

@@ -121,7 +121,7 @@ struct SupabaseClient {
                            userID: id, email: user["email"] as? String, server: base.absoluteString)
     }
 
-    /// Returns nil when the project still asks new accounts to confirm their email.
+    /// Returns nil when the project asks new accounts to confirm their email (a code was emailed).
     func signUp(email: String, password: String, username: String) async throws -> AuthSession? {
         let (data, _) = try await send("POST", "/auth/v1/signup",
                                        json: ["email": email, "password": password, "data": ["username": username]],
@@ -134,6 +134,19 @@ struct SupabaseClient {
                                        json: ["email": email, "password": password], token: nil)
         guard let s = session(from: data) else { throw OnlineError.server(code: nil, message: "Unexpected reply") }
         return s
+    }
+
+    /// Finishes a sign-up with the code from the confirmation email.
+    func verifyEmail(_ email: String, code: String) async throws -> AuthSession {
+        let (data, _) = try await send("POST", "/auth/v1/verify",
+                                       json: ["type": "email", "email": email, "token": code], token: nil)
+        guard let s = session(from: data) else { throw OnlineError.server(code: nil, message: "Unexpected reply") }
+        return s
+    }
+
+    /// Emails a new sign-up code. The server answers the same for unknown or already confirmed addresses.
+    func resendCode(_ email: String) async throws {
+        _ = try await send("POST", "/auth/v1/resend", json: ["type": "signup", "email": email], token: nil)
     }
 
     func refresh(_ refreshToken: String) async throws -> AuthSession {
