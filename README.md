@@ -6,9 +6,9 @@ Thrustbound is a portrait game where you pilot a small rocket through 80 levels.
 
 It runs on **iPhone** (native app), **Android** (APK) and **in the browser**:
 
-- **Play in the browser:** https://99mac88-afk.github.io/rocket/
-- **iPhone:** [Thrustbound.ipa](https://github.com/99mac88-afk/rocket/releases/latest/download/Thrustbound.ipa) (sideload, see below)
-- **Android:** [Thrustbound.apk](https://github.com/99mac88-afk/rocket/releases/latest/download/Thrustbound.apk)
+- **Play in the browser:** https://99mac88-afk.github.io/thrustbound/
+- **iPhone:** [Thrustbound.ipa](https://github.com/99mac88-afk/thrustbound/releases/latest/download/Thrustbound.ipa) (sideload, see below)
+- **Android:** [Thrustbound.apk](https://github.com/99mac88-afk/thrustbound/releases/latest/download/Thrustbound.apk)
 
 The website looks at the visitor's device and recommends the right download (the iPhone app on iPhones, the APK on Android, both on a computer). Levels and accounts are shared: a level published from an iPhone can be played on Android or the web, and the other way round.
 

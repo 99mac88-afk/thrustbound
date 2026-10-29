@@ -7,7 +7,7 @@
 **Downloads**
 - iPhone: `Thrustbound.ipa`. It is unsigned, so install it with **AltStore / SideStore**, **Sideloadly** or **TrollStore**. iOS 15 or later. With a free Apple ID it must be refreshed every 7 days, and on iOS 16+ you need to turn on **Settings → Privacy & Security → Developer Mode**.
 - Android: `Thrustbound.apk`. Open the file and allow your browser to install apps when Android asks. Android 7 or later.
-- Browser: https://99mac88-afk.github.io/rocket/
+- Browser: https://99mac88-afk.github.io/thrustbound/
 
 Also includes everything from 2.1 and 2.0:
 - 80 levels in 8 worlds (worlds 5–8 have tight fuel tanks)
@@ -26,4 +26,4 @@ Also includes everything from 2.1 and 2.0:
 **Скачать**
 - iPhone: `Thrustbound.ipa` (не подписан): установи через **AltStore / SideStore**, **Sideloadly** или **TrollStore**. iOS 15 или новее.
 - Android: `Thrustbound.apk`: открой файл и разреши браузеру устанавливать приложения.
-- Браузер: https://99mac88-afk.github.io/rocket/
+- Браузер: https://99mac88-afk.github.io/thrustbound/

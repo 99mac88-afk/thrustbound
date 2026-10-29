@@ -3,7 +3,7 @@ import { html, raw, setHTML, sheet } from './dom.js';
 import { icon } from './icons.js';
 import { sound } from './audio.js';
 
-export const REPO = 'https://github.com/99mac88-afk/rocket';
+export const REPO = 'https://github.com/99mac88-afk/thrustbound';
 export const DOWNLOADS = {
   ios: `${REPO}/releases/latest/download/Thrustbound.ipa`,
   android: `${REPO}/releases/latest/download/Thrustbound.apk`,
