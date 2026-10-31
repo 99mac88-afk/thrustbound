@@ -177,8 +177,8 @@ final class GameSession: ObservableObject {
         case .editor(let id, let hash)?:
             app.maker.recordClear(id: id, hash: hash, time: time)
             update = RecordUpdate(newBestStars: false, newBestTime: false, previousBestTime: nil, firstClear: false)
-        case .community?:
-            update = RecordUpdate(newBestStars: false, newBestTime: false, previousBestTime: nil, firstClear: false)
+        case .community(let community)?:
+            update = app.progress.recordClear(community.id, time: time)
         }
         result = LevelResult(stars: stars, time: time, fuelLeft: fuelLeft, par: level.par, update: update)
         withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) { phase = .won }

@@ -515,6 +515,53 @@ final class MakerTests: XCTestCase {
         }
     }
 
+    func testProgressMergeKeepsTheBestOfBoth() {
+        let device: [Int: LevelRecord] = [1: LevelRecord(stars: 2, bestTime: 20), 2: LevelRecord(stars: 3, bestTime: 9)]
+        let account: [Int: LevelRecord] = [1: LevelRecord(stars: 3, bestTime: 25), 3: LevelRecord(stars: 1, bestTime: 40)]
+        let merged = ProgressSync.merge(device, account)
+        XCTAssertEqual(merged[1], LevelRecord(stars: 3, bestTime: 20))
+        XCTAssertEqual(merged[2], LevelRecord(stars: 3, bestTime: 9))
+        XCTAssertEqual(merged[3], LevelRecord(stars: 1, bestTime: 40))
+        XCTAssertEqual(ProgressSync.merge(account, device), merged, "order doesn't matter")
+        XCTAssertEqual(ProgressSync.mergeClears(["a": 12, "b": 30], ["a": 15, "c": 8]), ["a": 12, "b": 30, "c": 8])
+    }
+
+    func testDecodeProgressReply() throws {
+        // Captured from sync_progress on a real Supabase stack (plus junk that must be skipped).
+        let json = #"""
+        {"campaign": {"1": {"stars": 3, "bestTime": 14.25}, "2": {"stars": 1, "bestTime": 30},
+                      "x": {"stars": 1, "bestTime": 5}, "4": {"stars": 7, "bestTime": 5}, "5": {"stars": 1}},
+         "community": {"00892DAE-AB32-48F1-BE47-C9AC73335BF6": 21.5, "bad": "fast"}}
+        """#
+        let reply = try ProgressSync.decode(Data(json.utf8))
+        XCTAssertEqual(reply.campaign, [1: LevelRecord(stars: 3, bestTime: 14.25), 2: LevelRecord(stars: 1, bestTime: 30)])
+        XCTAssertEqual(reply.community, ["00892dae-ab32-48f1-be47-c9ac73335bf6": 21.5])
+        XCTAssertNil(reply.resets)
+        XCTAssertFalse(reply.replaced)
+        let fresh = try ProgressSync.decode(Data(#"{"campaign": {}, "community": {}, "resets": 2, "replaced": true}"#.utf8))
+        XCTAssertEqual(fresh, ProgressSync.Reply(campaign: [:], community: [:], resets: 2, replaced: true))
+        XCTAssertThrowsError(try ProgressSync.decode(Data("[]".utf8)))
+        // A server that hasn't run the new schema.sql yet answers like this.
+        let missing = SupabaseClient.error(from: Data(#"{"code":"PGRST202","message":"Could not find the function public.sync_progress"}"#.utf8), status: 404)
+        XCTAssertEqual(missing, .server(code: "PGRST202", message: "Could not find the function public.sync_progress"))
+    }
+
+    func testProgressTextInBothLanguages() {
+        let en = L10n(.en)
+        let ru = L10n(.ru)
+        XCTAssertEqual(en.finishedIn(12.34), "Finished · 12.3s")
+        XCTAssertEqual(ru.finishedIn(12.34), "Пройден · 12,3 с")
+        XCTAssertEqual(en.progressSaved(levels: 1, stars: 3), "Progress saved to your account: 1 level, 3 ★")
+        XCTAssertEqual(ru.progressSaved(levels: 23, stars: 51), "Прогресс сохранён в аккаунте: 23 уровня, 51 ★")
+        for (a, b) in [(en.notFinished, ru.notFinished), (en.youFinished(9), ru.youFinished(9)),
+                       (en.youHaventFinished, ru.youHaventFinished), (en.progressSyncing, ru.progressSyncing),
+                       (en.progressOffline, ru.progressOffline), (en.progressUnavailable, ru.progressUnavailable),
+                       (en.resetAlsoAccount, ru.resetAlsoAccount)] {
+            XCTAssertFalse(a.isEmpty)
+            XCTAssertNotEqual(a, b)
+        }
+    }
+
     func testBackendConfig() {
         XCTAssertTrue(BackendConfig(url: "https://abc.supabase.co/", anonKey: "k").isUsable)
         XCTAssertEqual(BackendConfig(url: "https://abc.supabase.co//", anonKey: "k").baseURL?.absoluteString, "https://abc.supabase.co")

@@ -7,7 +7,8 @@ import {
   sampleLevel, setRock, isRock, MAX_ITEMS, MAX_ROWS, FUEL_MAX,
 } from '../js/editor-level.js';
 import { compile, problems, rockOutlines } from '../js/compiler.js';
-import { cleanCode, errorFrom, isCompleteCode } from '../js/online.js';
+import { cleanCode, decodeProgress, errorFrom, isCompleteCode, mergeClears } from '../js/online.js';
+import { Progress, mergeRecords } from '../js/store.js';
 import { L10n, waitSeconds } from '../js/i18n.js';
 
 const run = (w, seconds) => { for (let t = 0; t < seconds; t += Physics.step) w.step(Physics.step, { thrust: false, targetAngle: null }); };
@@ -205,4 +206,53 @@ test('email code helpers and messages', () => {
   assert.ok(en.codeSentTo('a@b.co').includes('a@b.co') && ru.codeSentTo('a@b.co').includes('a@b.co'));
   assert.notEqual(en.resendIn(9), ru.resendIn(9));
   assert.notEqual(en.onlineError({ code: 'confirmEmail' }), ru.onlineError({ code: 'confirmEmail' }));
+});
+
+test('progress merge keeps the best of both', () => {
+  const device = { 1: { stars: 2, bestTime: 20 }, 2: { stars: 3, bestTime: 9 } };
+  const account = { 1: { stars: 3, bestTime: 25 }, 3: { stars: 1, bestTime: 40 } };
+  const merged = mergeRecords(device, account);
+  assert.deepEqual(merged, { 1: { stars: 3, bestTime: 20 }, 2: { stars: 3, bestTime: 9 }, 3: { stars: 1, bestTime: 40 } });
+  assert.deepEqual(mergeRecords(account, device), merged, "order doesn't matter");
+  assert.deepEqual(mergeClears({ a: 12, b: 30 }, { a: 15, c: 8 }), { a: 12, b: 30, c: 8 });
+
+  // Only levels of this game are taken; "replace" takes the account's as it is.
+  const p = new Progress([{ id: 1 }, { id: 2 }]);
+  p.recordWin(0, 1, 50);
+  assert.equal(p.mergeRecords({ 1: { stars: 3, bestTime: 60 }, 99: { stars: 3, bestTime: 1 } }), true);
+  assert.deepEqual(p.records, { 1: { stars: 3, bestTime: 50 } });
+  assert.equal(p.mergeRecords({ 1: { stars: 2, bestTime: 55 } }), false, 'nothing better, nothing changes');
+  assert.equal(p.mergeRecords({ 2: { stars: 1, bestTime: 70 } }, true), true);
+  assert.deepEqual(p.records, { 2: { stars: 1, bestTime: 70 } });
+});
+
+test('progress replies are checked', () => {
+  // Captured from sync_progress on a real Supabase stack (plus junk that must be skipped).
+  const reply = decodeProgress({
+    campaign: { 1: { stars: 3, bestTime: 14.25 }, 2: { stars: 1, bestTime: 30 }, x: { stars: 1, bestTime: 5 }, 4: { stars: 7, bestTime: 5 }, 5: { stars: 1 } },
+    community: { '00892DAE-AB32-48F1-BE47-C9AC73335BF6': 21.5, bad: 'fast' },
+    resets: 2, replaced: true,
+  });
+  assert.deepEqual(reply, {
+    campaign: { 1: { stars: 3, bestTime: 14.25 }, 2: { stars: 1, bestTime: 30 } },
+    community: { '00892dae-ab32-48f1-be47-c9ac73335bf6': 21.5 },
+    resets: 2, replaced: true,
+  });
+  assert.deepEqual(decodeProgress({ campaign: {}, community: {} }), { campaign: {}, community: {}, resets: null, replaced: false });
+  assert.throws(() => decodeProgress([]));
+  // A server that hasn't run the new schema.sql yet answers like this.
+  assert.equal(errorFrom({ code: 'PGRST202', message: 'Could not find the function public.sync_progress' }, 404).serverCode, 'PGRST202');
+});
+
+test('progress text in both languages', () => {
+  const en = new L10n('en');
+  const ru = new L10n('ru');
+  assert.equal(en.finishedIn(12.34), 'Finished · 12.3s');
+  assert.equal(ru.finishedIn(12.34), 'Пройден · 12,3 с');
+  assert.equal(en.progressSaved(1, 3), 'Progress saved to your account: 1 level, 3 ★');
+  assert.equal(ru.progressSaved(23, 51), 'Прогресс сохранён в аккаунте: 23 уровня, 51 ★');
+  for (const k of ['notFinished', 'youHaventFinished', 'progressSyncing', 'progressOffline', 'progressUnavailable', 'resetAlsoAccount']) {
+    assert.ok(en[k] && ru[k] && en[k] !== ru[k], k);
+  }
+  assert.notEqual(en.youFinished(9), ru.youFinished(9));
 });

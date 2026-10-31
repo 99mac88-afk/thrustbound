@@ -2,7 +2,7 @@
 import { L10n, detectLang } from './i18n.js';
 import { Progress } from './store.js';
 import { haptics, sound } from './audio.js';
-import { AccountStore, CommunityStore } from './online.js';
+import { AccountStore, CommunityStore, ProgressSync } from './online.js';
 import { LevelStore } from './maker.js';
 import { MenuScreen, LevelsScreen, HowToScreen, SettingsScreen } from './ui.js';
 import { GameScreen } from './game.js';
@@ -26,6 +26,20 @@ export class App {
     this.maker = new LevelStore();
     this.account = new AccountStore(bundledServer);
     this.community = new CommunityStore(this.account);
+    this.sync = new ProgressSync(this.account, this.progress);
+    // Progress that arrives from the account shows up on the menu and level list right away.
+    this.shownCampaign = this.sync.campaignVersion;
+    this.sync.on(() => {
+      if (this.sync.campaignVersion === this.shownCampaign) return;
+      this.shownCampaign = this.sync.campaignVersion;
+      if ((this.currentName === 'menu' || this.currentName === 'levels') && !document.querySelector('.sheet-wrap, .dialog-wrap')) {
+        this.refreshScreen();
+      }
+    });
+    // Pick up progress made on other devices when the game comes back.
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') this.sync.syncIfStale();
+    });
     this.isTouch = (globalThis.matchMedia && matchMedia('(pointer: coarse)').matches) || (navigator.maxTouchPoints || 0) > 0;
     this.screenEl = document.getElementById('screen');
     this.background = new MenuBackground(document.getElementById('bg'));
@@ -98,6 +112,15 @@ export class App {
     this.current.mount(root);
     document.documentElement.lang = this.lang;
     this.fit();
+  }
+
+  /** Draws the current screen again, keeping where it was scrolled to. */
+  refreshScreen() {
+    const before = this.screenEl.querySelector('.scroll');
+    const top = before ? before.scrollTop : 0;
+    this.go(this.currentName, { ...this.currentParams, keepScroll: true });
+    const after = this.screenEl.querySelector('.scroll');
+    if (after) after.scrollTop = top;
   }
 
   /** Re-fits labels after anything re-renders (cheap, runs on the next frame). */

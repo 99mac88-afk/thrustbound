@@ -3,7 +3,8 @@
 //   AUTH_URL=http://127.0.0.1:59999 REST_URL=http://127.0.0.1:53000 ANON_KEY=... node web/test/online-flow.mjs
 import assert from 'node:assert/strict';
 import http from 'node:http';
-import { AccountStore, CommunityStore } from '../js/online.js';
+import { AccountStore, CommunityStore, ProgressSync } from '../js/online.js';
+import { Progress } from '../js/store.js';
 import { sampleLevel } from '../js/editor-level.js';
 import { compile } from '../js/compiler.js';
 
@@ -90,6 +91,53 @@ try {
 
   await assert.rejects(bobCommunity.remove(listed), (e) => e.code === 'notAllowed');
   step('players cannot delete other levels');
+
+  // Progress follows the account: two devices signed in to Bob's account.
+  const levels = [{ id: 1 }, { id: 2 }, { id: 3 }];
+  const phone = new Progress(levels);
+  phone.recordWin(0, 2, 20);
+  phone.recordWin(1, 3, 9);
+  const phoneSync = new ProgressSync(bob, phone);
+  await phoneSync.sync();
+  assert.equal(phoneSync.state, 'synced');
+  assert.deepEqual(phoneSync.recordClear(id, 31.5), { newBestStars: false, newBestTime: false, firstClear: true });
+  assert.deepEqual(phoneSync.recordClear(id, 40), { newBestStars: false, newBestTime: false, firstClear: false });
+  assert.equal(phoneSync.recordClear(id.toUpperCase(), 30).newBestTime, true);
+  await phoneSync.sync();
+
+  const bob2 = new AccountStore({ url: base, anonKey: ANON_KEY });
+  await bob2.signIn(`webb${run}@example.com`, 'hunter22!');
+  const laptop = new Progress(levels);
+  laptop.recordWin(0, 3, 25);
+  const laptopSync = new ProgressSync(bob2, laptop);
+  await laptopSync.sync();
+  assert.deepEqual(laptop.records, { 1: { stars: 3, bestTime: 20 }, 2: { stars: 3, bestTime: 9 } }, 'best of both devices');
+  assert.equal(laptopSync.clearTime(id), 30, 'finished community level shows on the other device');
+  assert.equal(laptopSync.campaignVersion, 1);
+  await phoneSync.sync();
+  assert.deepEqual(phone.records[1], { stars: 3, bestTime: 20 }, 'and back on the first device');
+  step('progress follows the account');
+
+  // Reset on the laptop: the phone (which synced before) takes the empty campaign instead of bringing it back.
+  laptop.reset();
+  laptopSync.resetCampaign();
+  await laptopSync.sync();
+  phone.recordWin(2, 1, 50);
+  await phoneSync.sync();
+  assert.deepEqual(phone.records, {}, 'old progress replaced after a reset elsewhere');
+  assert.equal(phoneSync.clearTime(id), 30, 'reset keeps finished community levels');
+  phone.recordWin(2, 1, 50);
+  await phoneSync.sync();
+  await laptopSync.sync();
+  assert.deepEqual(laptop.records, { 3: { stars: 1, bestTime: 50 } }, 'new progress after the reset syncs again');
+  step('reset progress on every device');
+
+  // Signed out: nothing is sent, finished levels stay on the device.
+  const guest = new ProgressSync(new AccountStore({ url: base, anonKey: ANON_KEY }), new Progress(levels));
+  await guest.sync();
+  assert.equal(guest.state, 'idle');
+  assert.deepEqual(guest.recordClear(id, 12).firstClear, true);
+  step('signed out play stays on the device');
 
   await alice.accessToken(true);
   assert.ok(alice.isSignedIn);

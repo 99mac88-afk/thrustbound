@@ -5,6 +5,7 @@ struct AccountSheet: View {
     @EnvironmentObject var app: AppModel
     @EnvironmentObject var account: AccountStore
     @EnvironmentObject var community: CommunityStore
+    @EnvironmentObject var progress: ProgressSync
     @Environment(\.dismiss) var dismiss
 
     @State var creating = true
@@ -57,7 +58,10 @@ struct AccountSheet: View {
             serverURL = account.usingCustomServer ? (account.config?.url ?? "") : ""
             serverKey = account.usingCustomServer ? (account.config?.anonKey ?? "") : ""
             showServer = !account.isConfigured
-            if account.isSignedIn { Task { await account.refreshProfile() } }
+            if account.isSignedIn {
+                Task { await account.refreshProfile() }
+                progress.syncIfStale()
+            }
         }
     }
 
@@ -92,6 +96,7 @@ struct AccountSheet: View {
                     }
                 }
             }
+            progressNote
             if account.isAdmin {
                 note(s.adminNote, icon: "shield.lefthalf.filled", color: UIStyle.gold)
             }
@@ -112,6 +117,21 @@ struct AccountSheet: View {
         }
         .padding(16)
         .background(RoundedRectangle(cornerRadius: 20, style: .continuous).fill(Color.white.opacity(0.05)))
+    }
+
+    /// Whether the player's progress made it to the account.
+    private var progressNote: some View {
+        switch progress.state {
+        case .synced:
+            return note(s.progressSaved(levels: app.completedCount, stars: app.totalStars),
+                        icon: "checkmark.icloud.fill", color: UIStyle.green)
+        case .idle, .syncing:
+            return note(s.progressSyncing, icon: "arrow.clockwise.icloud.fill", color: UIStyle.cyan)
+        case .failed:
+            return note(s.progressOffline, icon: "icloud.slash.fill", color: UIStyle.gold)
+        case .unavailable:
+            return note(s.progressUnavailable, icon: "exclamationmark.icloud.fill", color: UIStyle.gold)
+        }
     }
 
     // MARK: - Sign up / sign in

@@ -375,6 +375,8 @@ export class CommunityStore extends Emitter {
   constructor(account) {
     super();
     this.account = account;
+    // Kept across reset() so a load that is still running for the same viewer can fill the list.
+    this.generation = {};
     this.reset(false);
     this.countedViews = new Set();
   }
@@ -387,7 +389,6 @@ export class CommunityStore extends Emitter {
     this.liked = new Set();
     this.liking = new Set();
     this.listedFor = {};
-    this.generation = {};
     if (emit) this.emit();
   }
 
@@ -537,5 +538,213 @@ export class CommunityStore extends Emitter {
     }
     this.emit();
     return row.id;
+  }
+}
+
+// ------------------------------------------------------------------ progress on the account
+
+const CLEARS_KEY = 'tb.clears.v1';
+const RESET_KEY = 'tb.pendingReset.v1';
+const RESETS_SEEN_KEY = 'tb.resetsSeen.v1';
+/** Screens sync when they open, but not more often than this. */
+export const STALE_AFTER = 60000;
+
+export function mergeClears(a, b) {
+  const out = { ...a };
+  for (const [id, t] of Object.entries(b || {})) out[id] = id in out ? Math.min(out[id], t) : t;
+  return out;
+}
+
+/**
+ * {"campaign": {"12": {"stars": 3, "bestTime": 14.2}}, "community": {"<uuid>": 21.5}, "resets": 0, "replaced": false},
+ * keeping only entries that make sense. replaced: the campaign was reset on another device, take the account's as it is.
+ */
+export function decodeProgress(o) {
+  if (!o || typeof o !== 'object' || Array.isArray(o)) throw new OnlineError('server', 'Unexpected reply');
+  const campaign = {};
+  for (const [id, r] of Object.entries(o.campaign && typeof o.campaign === 'object' ? o.campaign : {})) {
+    if (!/^[1-9][0-9]*$/.test(id) || !r || typeof r !== 'object') continue;
+    const { stars, bestTime } = r;
+    if (!Number.isInteger(stars) || stars < 0 || stars > 3 || typeof bestTime !== 'number' || !(bestTime > 0) || !Number.isFinite(bestTime)) continue;
+    campaign[id] = { stars, bestTime };
+  }
+  const community = {};
+  for (const [id, t] of Object.entries(o.community && typeof o.community === 'object' ? o.community : {})) {
+    if (typeof t === 'number' && t > 0 && Number.isFinite(t)) community[id.toLowerCase()] = t;
+  }
+  const resets = Number.isInteger(o.resets) ? o.resets : null;
+  return { campaign, community, resets, replaced: o.replaced === true };
+}
+
+/**
+ * Saves the player's progress to their account so it follows them to every device:
+ * stars and best times in the campaign (a store.js Progress), and which community levels they finished.
+ * The best result always wins, so a sync is simply "send everything, keep the best of both".
+ * state: idle | syncing | synced | unavailable (server without sync_progress) | failed (offline, try later)
+ */
+export class ProgressSync extends Emitter {
+  constructor(account, progress) {
+    super();
+    this.account = account;
+    this.progress = progress;
+    const saved = storage.get(CLEARS_KEY);
+    this.clearsServer = saved && typeof saved.server === 'string' ? saved.server : '';
+    this.clears = saved && saved.clears && typeof saved.clears === 'object' ? decodeProgress({ community: saved.clears }).community : {};
+    this.pendingResetUser = storage.get(RESET_KEY);
+    // The account's reset count this device last saw, per "server|user".
+    const seen = storage.get(RESETS_SEEN_KEY);
+    this.resetsSeen = seen && typeof seen === 'object' ? seen : {};
+    this.state = 'idle';
+    this.running = false;
+    this.again = false;
+    this.lastAttempt = 0;
+    // Bumped by Reset progress so replies to older requests don't bring the campaign back.
+    this.resetGeneration = 0;
+    this.unavailableServer = null;
+    /** Bumped whenever the account brings campaign records this device didn't have. */
+    this.campaignVersion = 0;
+    this.lastUser = account.userID;
+    account.on(() => {
+      this.serverMayHaveChanged();
+      const user = this.account.userID;
+      if (user !== this.lastUser) {
+        this.lastUser = user;
+        if (user) this.sync();
+      }
+    });
+    this.serverMayHaveChanged();
+    this.sync();
+  }
+
+  clearTime(levelID) {
+    const t = this.clears[String(levelID).toLowerCase()];
+    return typeof t === 'number' ? t : null;
+  }
+
+  /** Remembers a finished community level and saves it to the account. Returns what changed. */
+  recordClear(levelID, time) {
+    this.serverMayHaveChanged();
+    const id = String(levelID).toLowerCase();
+    const old = id in this.clears ? this.clears[id] : null;
+    const faster = old === null || time < old;
+    if (faster) {
+      this.clears[id] = time;
+      this.saveClears();
+      this.emit();
+    }
+    this.sync();
+    return { newBestStars: false, newBestTime: old !== null && faster, firstClear: old === null };
+  }
+
+  /** Sends this device's progress and takes the account's (does nothing when signed out). Resolves when done. */
+  sync() {
+    if (!this.account.isSignedIn) return Promise.resolve();
+    if (this.running) {
+      this.again = true;
+      return this.pending;
+    }
+    this.running = true;
+    this.pending = this.run().finally(() => {
+      this.running = false;
+      if (this.again) {
+        this.again = false;
+        return this.sync();
+      }
+      return undefined;
+    });
+    return this.pending;
+  }
+
+  /** Syncs unless that happened in the last minute (screens call this when they open). */
+  syncIfStale(now = Date.now()) {
+    if (this.lastAttempt && now - this.lastAttempt < STALE_AFTER) return Promise.resolve();
+    return this.sync();
+  }
+
+  /** Settings -> Reset progress: also clears the campaign saved to the account. */
+  resetCampaign() {
+    this.resetGeneration++;
+    const user = this.account.userID;
+    if (!user) return;
+    this.pendingResetUser = user;
+    storage.set(RESET_KEY, user);
+    this.sync();
+  }
+
+  setState(state) {
+    if (this.state === state) return;
+    this.state = state;
+    this.emit();
+  }
+
+  async run() {
+    const user = this.account.userID;
+    const client = this.account.client;
+    if (!user || !client) return;
+    const server = client.base;
+    if (this.unavailableServer === server) return;
+    this.serverMayHaveChanged();
+    this.lastAttempt = Date.now();
+    const generation = this.resetGeneration;
+    const reset = this.pendingResetUser === user;
+    const seenKey = `${server}|${user}`;
+    const seen = Number.isInteger(this.resetsSeen[seenKey]) ? this.resetsSeen[seenKey] : null;
+    const campaign = {};
+    for (const [id, r] of Object.entries(this.progress.records)) campaign[id] = { stars: r.stars, bestTime: r.bestTime };
+    const community = { ...this.clears };
+    this.setState('syncing');
+    try {
+      const data = await this.account.authorized((c, t) => c.rpc('sync_progress', { p_campaign: campaign, p_community: community, p_reset_campaign: reset, p_seen_resets: seen }, t));
+      // Signed out or switched accounts meanwhile: this reply belongs to someone else.
+      if (this.account.userID !== user || !this.account.client || this.account.client.base !== server) {
+        this.setState('idle');
+        return;
+      }
+      const reply = decodeProgress(data);
+      let changed = false;
+      if (generation === this.resetGeneration) {
+        if (reset) {
+          this.pendingResetUser = null;
+          storage.remove(RESET_KEY);
+        }
+        if (this.progress.mergeRecords(reply.campaign, reply.replaced)) {
+          this.campaignVersion++;
+          changed = true;
+        }
+        if (reply.resets !== null) {
+          this.resetsSeen[seenKey] = reply.resets;
+          storage.set(RESETS_SEEN_KEY, this.resetsSeen);
+        }
+      }
+      const merged = mergeClears(this.clears, reply.community);
+      if (Object.keys(merged).some((k) => merged[k] !== this.clears[k])) {
+        this.clears = merged;
+        this.saveClears();
+        changed = true;
+      }
+      this.state = 'synced';
+      this.emit();
+      return changed;
+    } catch (e) {
+      if (e && e.serverCode === 'PGRST202') {
+        this.unavailableServer = server;
+        this.setState('unavailable');
+      } else {
+        this.setState('failed');
+      }
+    }
+  }
+
+  /** Community level ids belong to one server, so a different server starts with none. */
+  serverMayHaveChanged() {
+    const server = this.account.config ? this.account.config.url : '';
+    if (server === this.clearsServer) return;
+    this.clearsServer = server;
+    this.clears = {};
+    this.saveClears();
+  }
+
+  saveClears() {
+    storage.set(CLEARS_KEY, { server: this.clearsServer, clears: this.clears });
   }
 }

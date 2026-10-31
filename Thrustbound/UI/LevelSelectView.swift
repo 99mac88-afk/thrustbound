@@ -24,6 +24,7 @@ struct LevelSelectView: View {
                         .padding(.bottom, 40)
                     }
                     .task {
+                        app.progress.syncIfStale()
                         let target = app.levels[app.continueIndex].world
                         guard target > 0 else { return }
                         try? await Task.sleep(nanoseconds: 60_000_000)

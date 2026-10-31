@@ -96,7 +96,10 @@ export class MenuScreen {
 }
 
 export class LevelsScreen {
-  constructor(app) { this.app = app; }
+  constructor(app, params = {}) {
+    this.app = app;
+    this.params = params;
+  }
 
   mount(root) {
     const { app } = this;
@@ -136,8 +139,9 @@ export class LevelsScreen {
       if (act === 'back') app.go('menu');
       else if (act === 'play') app.go('game', { levelIndex: Number(el.dataset.i) });
     });
+    app.sync.syncIfStale();
     const target = lib.levels[p.continueIndex].world;
-    if (target > 0) {
+    if (target > 0 && !this.params.keepScroll) {
       requestAnimationFrame(() => {
         const sec = root.querySelector(`#world-${target}`);
         if (sec) sec.scrollIntoView({ block: 'start' });
@@ -213,9 +217,9 @@ export class SettingsScreen {
       }
       if (act === 'reset') {
         const s = app.s;
-        dialog(s.resetConfirmTitle, s.resetConfirmMessage, [
+        dialog(s.resetConfirmTitle, app.account.isSignedIn ? `${s.resetConfirmMessage} ${s.resetAlsoAccount}` : s.resetConfirmMessage, [
           { label: s.cancel, role: 'cancel' },
-          { label: s.reset, role: 'destructive', action: () => { app.progress.reset(); this.render(); } },
+          { label: s.reset, role: 'destructive', action: () => { app.progress.reset(); app.sync.resetCampaign(); this.render(); } },
         ]);
       }
       return null;

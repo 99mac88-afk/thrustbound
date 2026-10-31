@@ -156,6 +156,28 @@ st, r = call("PATCH", REST + f"/levels?id=eq.{bob_level}", {"likes": 999}, token
 print("     patch counters ->", st, r)
 check("cannot edit counters", st >= 400, (st, r))
 
+# --- progress (same requests as the apps: the whole device state, best result wins)
+CAMPAIGN = {"1": {"stars": 3, "bestTime": 14.25}, "2": {"stars": 1, "bestTime": 30}}
+def sync(token, campaign, community, reset=False, seen=None):
+    return call("POST", REST + "/rpc/sync_progress", {"p_campaign": campaign, "p_community": community,
+                                                      "p_reset_campaign": reset, "p_seen_resets": seen}, token=token)
+
+
+st, pr = sync(alice, CAMPAIGN, {bob_level: 21.5})
+print("     sync ->", st, pr)
+check("sync progress", st == 200 and pr == {"campaign": CAMPAIGN, "community": {bob_level: 21.5}, "resets": 0, "replaced": False}, (st, pr))
+st, pr = sync(alice, {"2": {"stars": 2, "bestTime": 35}}, {bob_level: 25}, seen=0)
+check("best result wins", st == 200 and pr["campaign"]["2"] == {"stars": 2, "bestTime": 30}
+      and pr["community"][bob_level] == 21.5, (st, pr))
+st, pr = sync(bob, {}, {})
+check("progress is per account", st == 200 and pr["campaign"] == {} and pr["community"] == {}, (st, pr))
+st, pr = sync(None, CAMPAIGN, {})
+print("     anon sync ->", st, pr)
+check("anon cannot save progress", st in (401, 403), (st, pr))
+st, pr = call("GET", REST + "/campaign_progress?select=*", token=alice)
+print("     read progress table ->", st, pr)
+check("progress table not readable directly", st in (401, 403), (st, pr))
+
 # --- deleting
 st, rows = call("DELETE", REST + f"/levels?id=eq.{alice_level}", token=bob, prefer="return=representation")
 check("bob cannot delete alice's level", st == 200 and rows == [], (st, rows))
@@ -168,6 +190,11 @@ else:
     check("author deletes own level (bob)", st == 200 and len(rows) == 1, (st, rows))
 st, rows = call("DELETE", REST + f"/levels?id=eq.{alice_level}", token=alice, prefer="return=representation")
 check("author deletes own level", st == 200 and len(rows) == 1, (st, rows))
+st, pr = sync(alice, {}, {}, reset=True, seen=0)
+check("deleted levels leave progress, reset clears the campaign", st == 200 and pr["campaign"] == {} and pr["community"] == {}
+      and pr["resets"] == 1, (st, pr))
+st, pr = sync(alice, CAMPAIGN, {}, seen=0)
+check("a device from before the reset is told to replace", st == 200 and pr["replaced"] is True and pr["campaign"] == {}, (st, pr))
 
 # --- tokens
 st, t = call("POST", AUTH + "/token?grant_type=refresh_token", {"refresh_token": alice_refresh})

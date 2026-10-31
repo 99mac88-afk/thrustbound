@@ -7,6 +7,9 @@
 --   profiles     one row per account (username, admin flag)
 --   levels       published community levels (title, level data, views, likes)
 --   level_likes  who liked what (one like per player per level)
+--   campaign_progress  each player's best stars and time per campaign level
+--   community_clears   which community levels each player has finished
+--   campaign_resets    how often each player reset their campaign (so other devices follow)
 --
 -- Rules (enforced by row level security, not by the app)
 --   * anyone can browse levels and see usernames
@@ -15,6 +18,8 @@
 --   * players can delete their own levels; admins can delete any level
 --   * the FIRST account ever created becomes the admin; admins can promote
 --     or demote others with set_admin('username', true|false)
+--   * progress is private: players only read and change their own, and only
+--     through sync_progress, which always keeps the best result
 
 -- ------------------------------------------------------------------ tables
 
@@ -51,6 +56,33 @@ create table if not exists public.level_likes (
     primary key (level_id, user_id)
 );
 create index if not exists level_likes_by_user on public.level_likes (user_id);
+
+create table if not exists public.campaign_progress (
+    user_id    uuid not null references public.profiles (id) on delete cascade,
+    level_id   integer not null,
+    stars      smallint not null,
+    best_time  double precision not null,
+    updated_at timestamptz not null default now(),
+    primary key (user_id, level_id),
+    constraint campaign_progress_level check (level_id between 1 and 100000),
+    constraint campaign_progress_stars check (stars between 0 and 3),
+    constraint campaign_progress_time check (best_time > 0 and best_time < 100000)
+);
+
+create table if not exists public.community_clears (
+    user_id    uuid not null references public.profiles (id) on delete cascade,
+    level_id   uuid not null references public.levels (id) on delete cascade,
+    best_time  double precision not null,
+    cleared_at timestamptz not null default now(),
+    primary key (user_id, level_id),
+    constraint community_clears_time check (best_time > 0 and best_time < 100000)
+);
+create index if not exists community_clears_by_level on public.community_clears (level_id);
+
+create table if not exists public.campaign_resets (
+    user_id uuid primary key references public.profiles (id) on delete cascade,
+    resets  integer not null default 0
+);
 
 -- ------------------------------------------------------------------ helpers
 
@@ -192,6 +224,99 @@ begin
 end
 $$;
 
+-- Saves one device's progress to the caller's account and returns everything
+-- saved there, so progress follows the player to every device:
+--   {"campaign": {"<level id>": {"stars": 3, "bestTime": 12.5}, ...},
+--    "community": {"<level uuid>": 12.5, ...}, "resets": 0, "replaced": false}
+-- The best stars and the best time always win, so devices can sync in any
+-- order and as often as they like. Entries that don't look right are skipped.
+-- p_reset_campaign clears the campaign first (Settings -> Reset progress) and
+-- counts the reset. A device sends the count it saw last (p_seen_resets); if
+-- the campaign was reset since, its old records are ignored and "replaced"
+-- tells it to take the account's campaign as it is.
+drop function if exists public.sync_progress(jsonb, jsonb, boolean);
+create or replace function public.sync_progress(p_campaign jsonb default '{}',
+                                                p_community jsonb default '{}',
+                                                p_reset_campaign boolean default false,
+                                                p_seen_resets integer default null)
+returns jsonb
+language plpgsql volatile security definer
+set search_path = public
+as $$
+declare
+    uid        uuid := auth.uid();
+    v_resets   integer;
+    v_replaced boolean := false;
+begin
+    if uid is null or not exists (select 1 from public.profiles p where p.id = uid) then
+        raise exception 'Sign in to save progress';
+    end if;
+    if p_campaign is null or jsonb_typeof(p_campaign) <> 'object' then
+        p_campaign := '{}';
+    end if;
+    if p_community is null or jsonb_typeof(p_community) <> 'object' then
+        p_community := '{}';
+    end if;
+    if (select count(*) from jsonb_object_keys(p_campaign)) > 2000
+       or (select count(*) from jsonb_object_keys(p_community)) > 20000 then
+        raise exception 'Too much progress at once';
+    end if;
+
+    select r.resets into v_resets from public.campaign_resets r where r.user_id = uid;
+    v_resets := coalesce(v_resets, 0);
+    if coalesce(p_reset_campaign, false) then
+        delete from public.campaign_progress where user_id = uid;
+        v_resets := v_resets + 1;
+        insert into public.campaign_resets as r (user_id, resets) values (uid, v_resets)
+            on conflict (user_id) do update set resets = excluded.resets;
+    elsif p_seen_resets is not null and p_seen_resets < v_resets then
+        -- This device last synced before a reset on another device: its old records don't count.
+        v_replaced := true;
+    end if;
+
+    -- CASE keeps the casts from running on values that aren't numbers;
+    -- GROUP BY merges keys that name the same level (one row each for ON CONFLICT).
+    insert into public.campaign_progress as c (user_id, level_id, stars, best_time)
+    select uid, r.level_id, max(r.stars), min(r.best)
+    from (select case when e.key ~ '^[1-9][0-9]{0,5}$' then e.key::integer end as level_id,
+                 case when jsonb_typeof(e.value -> 'stars') = 'number' and (e.value ->> 'stars') ~ '^[0-3]$'
+                      then (e.value ->> 'stars')::smallint end as stars,
+                 case when jsonb_typeof(e.value -> 'bestTime') = 'number'
+                      then (e.value ->> 'bestTime')::numeric end as best
+          from jsonb_each(p_campaign) e) r
+    where not v_replaced
+      and r.level_id between 1 and 100000 and r.stars is not null and r.best > 0 and r.best < 100000
+    group by r.level_id
+    on conflict (user_id, level_id) do update
+        set stars = greatest(c.stars, excluded.stars),
+            best_time = least(c.best_time, excluded.best_time),
+            updated_at = now()
+        where excluded.stars > c.stars or excluded.best_time < c.best_time;
+
+    insert into public.community_clears as c (user_id, level_id, best_time)
+    select uid, l.id, min(r.best)
+    from (select case when e.key ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+                      then e.key::uuid end as level_id,
+                 case when jsonb_typeof(e.value) = 'number' then (e.value #>> '{}')::numeric end as best
+          from jsonb_each(p_community) e) r
+    join public.levels l on l.id = r.level_id
+    where r.best > 0 and r.best < 100000
+    group by l.id
+    on conflict (user_id, level_id) do update
+        set best_time = least(c.best_time, excluded.best_time)
+        where excluded.best_time < c.best_time;
+
+    return jsonb_build_object(
+        'campaign', coalesce((select jsonb_object_agg(p.level_id::text,
+                                         jsonb_build_object('stars', p.stars, 'bestTime', p.best_time))
+                              from public.campaign_progress p where p.user_id = uid), '{}'::jsonb),
+        'community', coalesce((select jsonb_object_agg(c.level_id::text, c.best_time)
+                               from public.community_clears c where c.user_id = uid), '{}'::jsonb),
+        'resets', v_resets,
+        'replaced', v_replaced);
+end
+$$;
+
 -- Admins only: grant or remove admin rights.
 create or replace function public.set_admin(p_username text, p_admin boolean)
 returns void
@@ -214,6 +339,10 @@ $$;
 alter table public.profiles enable row level security;
 alter table public.levels enable row level security;
 alter table public.level_likes enable row level security;
+-- No policies on purpose: progress is only read and written through sync_progress.
+alter table public.campaign_progress enable row level security;
+alter table public.community_clears enable row level security;
+alter table public.campaign_resets enable row level security;
 
 drop policy if exists "profiles are public" on public.profiles;
 create policy "profiles are public" on public.profiles
@@ -241,6 +370,7 @@ create policy "players see their own likes" on public.level_likes
 -- Supabase grants everything to anon/authenticated by default; start from
 -- nothing and allow only what the app needs.
 revoke all on public.profiles, public.levels, public.level_likes from public, anon, authenticated;
+revoke all on public.campaign_progress, public.community_clears, public.campaign_resets from public, anon, authenticated;
 grant usage on schema public to anon, authenticated;
 grant select on public.profiles, public.levels to anon, authenticated;
 grant insert, delete on public.levels to authenticated;
@@ -251,6 +381,7 @@ revoke all on function public.username_available(text) from public, anon, authen
 revoke all on function public.register_view(uuid) from public, anon, authenticated;
 revoke all on function public.toggle_like(uuid) from public, anon, authenticated;
 revoke all on function public.set_admin(text, boolean) from public, anon, authenticated;
+revoke all on function public.sync_progress(jsonb, jsonb, boolean, integer) from public, anon, authenticated;
 revoke all on function public.handle_new_user() from public, anon, authenticated;
 revoke all on function public.levels_before_insert() from public, anon, authenticated;
 revoke all on function public.level_likes_count() from public, anon, authenticated;
@@ -259,3 +390,4 @@ grant execute on function public.username_available(text) to anon, authenticated
 grant execute on function public.register_view(uuid) to anon, authenticated;
 grant execute on function public.toggle_like(uuid) to authenticated;
 grant execute on function public.set_admin(text, boolean) to authenticated;
+grant execute on function public.sync_progress(jsonb, jsonb, boolean, integer) to authenticated;

@@ -8,6 +8,7 @@ on:
       - "web/test/online-flow.mjs"
       - "web/test/confirm-flow.mjs"
       - "web/js/i18n.js"
+      - "web/js/store.js"
       - ".github/workflows/backend.yml"
   workflow_dispatch:
 

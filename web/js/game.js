@@ -778,8 +778,14 @@ export class GameScreen {
 
   didWin(stars, time, fuelLeft) {
     let update = { newBestStars: false, newBestTime: false, firstClear: false };
-    if (!this.custom) update = this.app.progress.recordWin(this.levelIndex, stars, time);
-    else if (this.custom.origin.type === 'editor') this.app.maker.recordClear(this.custom.origin.levelID, this.custom.origin.hash, time);
+    if (!this.custom) {
+      update = this.app.progress.recordWin(this.levelIndex, stars, time);
+      if (update.firstClear || update.newBestStars || update.newBestTime) this.app.sync.sync();
+    } else if (this.custom.origin.type === 'editor') {
+      this.app.maker.recordClear(this.custom.origin.levelID, this.custom.origin.hash, time);
+    } else {
+      update = this.app.sync.recordClear(this.custom.origin.level.id, time);
+    }
     this.result = { stars, time, fuelLeft, par: this.level.par, update };
     this.showOverlay('won');
   }

@@ -57,9 +57,11 @@ Levels unlock one after another. You can turn on *Settings → Unlock all levels
 
 Levels are saved on the iPhone (`Documents/MyLevels`).
 
-## Community (accounts, likes and views)
+## Community (accounts, likes, views and saved progress)
 
 *Main menu → COMMUNITY* lists published levels in four tabs: **New**, **Top** (most likes), **Most viewed** and **Mine**. Open a level to see its views and likes, **PLAY** it (that counts a view), and **Like** it (once per account; tap again to unlike). You can also like a level from the screen you see after landing on it. Liking and publishing need an account (username, email and password). Browsing and playing don't. When the server has *Confirm email* on, new pilots get a 6-digit code by email and type it into the game to finish creating the account (*Send a new code* works once a minute; the game remembers the waiting sign-up if it's closed).
+
+**Progress on your account:** while you're signed in, your stars and best times in the campaign and the community levels you've finished are saved to your account. Sign in on another phone, tablet or the website and they're there too. If you played before signing in, that progress is added to the account (the best result per level always wins). Every community level shows **Finished · 12.3s** (your best time) or **Not finished yet**, in the list and on the level's page. *Account* shows how much progress is saved. *Settings → Reset progress* while signed in also clears the campaign on the account and on your other devices, but keeps your finished community levels.
 
 **Admin:** the first account ever created on the server is the admin. Admins see a **Delete for everyone** button on every community level. Authors can delete their own levels too. Admins can make other players admins from the Supabase SQL editor with `select set_admin('username', true);` while signed in as an admin, or with `update profiles set is_admin = true where username = 'name';`.
 
@@ -68,7 +70,7 @@ Levels are saved on the iPhone (`Documents/MyLevels`).
 The apps and the website ship connected to the Thrustbound server (`Thrustbound/Resources/backend.json`), so Community works out of the box. The steps below are for running a server of your own. Community runs on a free [Supabase](https://supabase.com) project. All the rules (who can publish, delete, like, and the view and like counters) are enforced by the database itself in [`backend/schema.sql`](backend/schema.sql).
 
 1. Create a free account at supabase.com and a **New project** (any name and region; save the database password somewhere).
-2. Open **SQL Editor → New query**, paste the whole of [`backend/schema.sql`](backend/schema.sql) and press **Run**. It is safe to run again after updates.
+2. Open **SQL Editor → New query**, paste the whole of [`backend/schema.sql`](backend/schema.sql) and press **Run**. It is safe to run again after updates, and you need to run it again whenever it changes (for example 2.3 added saved progress). Nothing already on the server is lost.
 3. Decide whether new accounts confirm their email with a code (recommended, see [Email confirmation codes](#email-confirmation-codes) below). With **Authentication → Sign In / Providers → Email → Confirm email** off, accounts work right away.
 4. Open **Project Settings → API Keys** and copy the public key: the **anon** key (on the *Legacy API keys* tab) or the newer **publishable** key. Copy the **Project URL** too (*Project Settings → Data API*, it looks like `https://abcdefgh.supabase.co`). These are meant to be public, because the database rules protect everything. Never put the *service_role* or *secret* key in the app.
 5. Put them into the game, either way works:
@@ -87,7 +89,7 @@ With *Confirm email* on, Supabase emails every new account a 6-digit code, and t
 
 Accounts created before you turned it on keep working. Codes work for an hour by default; an old code stops working once a new one is sent.
 
-`backend/test/` checks the rules in two ways. `run_tests.sh` uses plain PostgreSQL. `run_api_tests.sh` starts Supabase's own Postgres and Auth images in Docker, adds PostgREST, and replays every request the app makes: sign up, sign in, sign-up codes (a second Auth server with *Confirm email* on sends its emails to a small mail catcher, [`mail_sink.py`](backend/test/mail_sink.py)), publishing, the New/Top/Most viewed/Mine lists, views, likes, permission checks and admin delete. The *Backend Check* workflow runs both on every change to `backend/`.
+`backend/test/` checks the rules in two ways. `run_tests.sh` uses plain PostgreSQL. `run_api_tests.sh` starts Supabase's own Postgres and Auth images in Docker, adds PostgREST, and replays every request the app makes: sign up, sign in, saving progress from two devices (including a reset), sign-up codes (a second Auth server with *Confirm email* on sends its emails to a small mail catcher, [`mail_sink.py`](backend/test/mail_sink.py)), publishing, the New/Top/Most viewed/Mine lists, views, likes, permission checks and admin delete. The *Backend Check* workflow runs both on every change to `backend/`.
 
 ## Play in the browser
 

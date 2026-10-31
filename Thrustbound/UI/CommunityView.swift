@@ -5,6 +5,7 @@ struct CommunityView: View {
     @EnvironmentObject var app: AppModel
     @EnvironmentObject var account: AccountStore
     @EnvironmentObject var community: CommunityStore
+    @EnvironmentObject var progress: ProgressSync
     @State var tab: CommunityTab = .newest
     @State var showAccount = false
     @State var selected: CommunityLevel?
@@ -28,6 +29,7 @@ struct CommunityView: View {
             await community.loadIfNeeded(tab)
         }
         .onAppear {
+            progress.syncIfStale()
             if app.launch.screen == "account-code" { showAccount = true }
         }
         .onChange(of: account.userID) { _ in
@@ -43,12 +45,14 @@ struct CommunityView: View {
                 .environmentObject(app)
                 .environmentObject(account)
                 .environmentObject(community)
+                .environmentObject(progress)
         }
         .sheet(isPresented: $showAccount) {
             AccountSheet()
                 .environmentObject(app)
                 .environmentObject(account)
                 .environmentObject(community)
+                .environmentObject(progress)
         }
     }
 
@@ -127,7 +131,8 @@ struct CommunityView: View {
                             selected = level
                         } label: {
                             CommunityRow(level: level, mine: level.authorID == account.userID,
-                                         liked: community.liked.contains(level.id), s: s)
+                                         liked: community.liked.contains(level.id),
+                                         finished: progress.clearTime(level.id), s: s)
                         }
                         .buttonStyle(PressableStyle())
                         .onAppear {
@@ -196,6 +201,8 @@ struct CommunityRow: View {
     let level: CommunityLevel
     let mine: Bool
     let liked: Bool
+    /// The player's best time if they finished this level.
+    let finished: Double?
     let s: L10n
 
     var body: some View {
@@ -225,6 +232,17 @@ struct CommunityRow: View {
                 .font(UIStyle.font(12, .semibold))
                 .foregroundColor(Color.white.opacity(0.55))
                 .lineLimit(1)
+                if let time = finished {
+                    Label(s.finishedIn(time), systemImage: "checkmark.seal.fill")
+                        .font(UIStyle.font(12, .bold))
+                        .foregroundColor(UIStyle.green)
+                        .lineLimit(1)
+                } else {
+                    Label(s.notFinished, systemImage: "circle.dashed")
+                        .font(UIStyle.font(12, .semibold))
+                        .foregroundColor(Color.white.opacity(0.4))
+                        .lineLimit(1)
+                }
             }
             Spacer(minLength: 6)
             VStack(alignment: .trailing, spacing: 6) {
@@ -250,6 +268,7 @@ struct CommunityDetailSheet: View {
     @EnvironmentObject var app: AppModel
     @EnvironmentObject var account: AccountStore
     @EnvironmentObject var community: CommunityStore
+    @EnvironmentObject var progress: ProgressSync
     @Environment(\.dismiss) var dismiss
     let level: CommunityLevel
 
@@ -295,6 +314,8 @@ struct CommunityDetailSheet: View {
                         stat(icon: "eye.fill", text: s.viewsCount(current.views), color: UIStyle.cyan)
                         stat(icon: "heart.fill", text: s.likesCount(current.likes), color: UIStyle.red)
                     }
+
+                    finishedStatus
 
                     ActionButton(title: s.play, icon: "play.fill", kind: .primary, height: 60) {
                         Task { await play() }
@@ -358,6 +379,19 @@ struct CommunityDetailSheet: View {
             .padding(.horizontal, 14)
             .frame(height: 38)
             .background(Capsule().fill(color.opacity(0.15)))
+    }
+
+    /// Whether this player has landed on the level yet (and their best time).
+    private var finishedStatus: some View {
+        let time = progress.clearTime(current.id)
+        return Label(time.map { s.youFinished($0) } ?? s.youHaventFinished,
+                     systemImage: time == nil ? "circle.dashed" : "checkmark.seal.fill")
+            .font(UIStyle.font(14, .bold))
+            .foregroundColor(time == nil ? Color.white.opacity(0.6) : UIStyle.green)
+            .multilineTextAlignment(.center)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 9)
+            .background(Capsule().fill((time == nil ? Color.white : UIStyle.green).opacity(0.1)))
     }
 
     private func play() async {
@@ -457,6 +491,7 @@ struct LikeButton: View {
                 .environmentObject(app)
                 .environmentObject(account)
                 .environmentObject(community)
+                .environmentObject(progress)
         }
     }
 }

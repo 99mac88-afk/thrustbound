@@ -108,6 +108,8 @@ final class AppModel: ObservableObject {
     /// Community account and levels.
     let account: AccountStore
     let community: CommunityStore
+    /// Progress saved to the account (campaign records and finished community levels).
+    let progress: ProgressSync
     /// Bumped every time a game starts so SwiftUI builds a fresh game screen.
     private(set) var gameToken = 0
 
@@ -134,6 +136,7 @@ final class AppModel: ObservableObject {
         maker = LevelStore(worlds: library.worlds)
         account = AccountStore()
         community = CommunityStore(account: account)
+        progress = ProgressSync(account: account)
         _soundOn = Published(initialValue: ud.bool(forKey: Keys.sound))
         _hapticsOn = Published(initialValue: ud.bool(forKey: Keys.haptics))
         _swapControls = Published(initialValue: ud.bool(forKey: Keys.swap))
@@ -150,6 +153,9 @@ final class AppModel: ObservableObject {
         SoundManager.shared.enabled = soundOn
         Haptics.enabled = hapticsOn
         applyLaunchOptions()
+        progress.localCampaign = { [weak self] in self?.records ?? [:] }
+        progress.applyCampaign = { [weak self] records, replace in self?.mergeRecords(records, replace: replace) }
+        progress.start()
     }
 
     private func applyLaunchOptions() {
@@ -253,12 +259,25 @@ final class AppModel: ObservableObject {
         if newTime { rec.bestTime = time }
         records[id] = rec
         saveRecords()
+        if newStars || newTime { progress.sync() }
         return RecordUpdate(newBestStars: newStars && old != nil, newBestTime: newTime && old != nil,
                             previousBestTime: old?.bestTime, firstClear: old == nil)
     }
 
     func resetProgress() {
         records = [:]
+        saveRecords()
+        progress.resetCampaign()
+    }
+
+    /// Adds progress saved to the account: the best of both for every level of this game.
+    /// `replace` takes the account's as it is (its campaign was reset on another device).
+    func mergeRecords(_ incoming: [Int: LevelRecord], replace: Bool = false) {
+        let known = Set(levels.map(\.id))
+        let mine = incoming.filter { known.contains($0.key) }
+        let merged = replace ? mine : ProgressSync.merge(records, mine)
+        guard merged != records else { return }
+        records = merged
         saveRecords()
     }
 

@@ -135,6 +135,89 @@ do $$ begin
 end $$;
 reset role;
 
+-- Progress: saved per player, the best result always wins, private, and
+-- cleaned up with the level or account
+select pg_temp.act_as('00000000-0000-0000-0000-00000000000b', 'authenticated');
+insert into public.levels (id, title, data) values ('abcdef00-0000-0000-0000-0000000000ab', 'Case Cave', '{"version":1}');
+reset role;
+select pg_temp.act_as('00000000-0000-0000-0000-00000000000c', 'authenticated');
+do $$
+declare r jsonb;
+begin
+    r := public.sync_progress('{"1": {"stars": 2, "bestTime": 20.5}, "2": {"stars": 3, "bestTime": 9}}',
+                              '{"10000000-0000-0000-0000-000000000001": 31.25}');
+    assert r -> 'campaign' -> '1' = '{"stars": 2, "bestTime": 20.5}', 'level 1 saved: ' || r::text;
+    assert r -> 'community' -> '10000000-0000-0000-0000-000000000001' = '31.25', 'clear saved: ' || r::text;
+
+    -- stars and time improve separately; worse results never replace better ones
+    r := public.sync_progress('{"1": {"stars": 3, "bestTime": 25}, "2": {"stars": 1, "bestTime": 8.5}}',
+                              '{"10000000-0000-0000-0000-000000000001": 40}');
+    assert r -> 'campaign' -> '1' = '{"stars": 3, "bestTime": 20.5}', 'more stars, time kept: ' || r::text;
+    assert r -> 'campaign' -> '2' = '{"stars": 3, "bestTime": 8.5}', 'faster, stars kept: ' || r::text;
+    assert r -> 'community' -> '10000000-0000-0000-0000-000000000001' = '31.25', 'slower clear ignored';
+
+    -- anything that doesn't look right is skipped without an error
+    r := public.sync_progress(
+        '{"0": {"stars": 1, "bestTime": 5}, "01": {"stars": 1, "bestTime": 5}, "x": {"stars": 1, "bestTime": 5},
+          "3": {"stars": 4, "bestTime": 5}, "4": {"stars": "3", "bestTime": 5}, "5": {"stars": 1, "bestTime": -1},
+          "6": {"stars": 1.5, "bestTime": 5}, "7": 3, "8": {"stars": 1, "bestTime": 1e9}, "9": {"stars": 1}}',
+        '{"not-a-uuid": 5, "20000000-0000-0000-0000-000000000009": 5, "abcdef00-0000-0000-0000-0000000000AB": "fast"}');
+    assert (select count(*) from jsonb_object_keys(r -> 'campaign')) = 2, 'junk campaign skipped: ' || r::text;
+    assert (select count(*) from jsonb_object_keys(r -> 'community')) = 1, 'junk clears skipped: ' || r::text;
+    assert public.sync_progress(null, null) = r, 'nulls are fine';
+
+    -- the same level written two ways counts once (best time)
+    r := public.sync_progress('{}', '{"abcdef00-0000-0000-0000-0000000000AB": 12, "abcdef00-0000-0000-0000-0000000000ab": 11}');
+    assert r -> 'community' -> 'abcdef00-0000-0000-0000-0000000000ab' = '11', 'case duplicates merged: ' || r::text;
+
+    -- Settings -> Reset progress clears the campaign (and only the campaign)
+    assert (r ->> 'resets')::int = 0 and not (r ->> 'replaced')::boolean, 'no resets yet: ' || r::text;
+    r := public.sync_progress('{"5": {"stars": 1, "bestTime": 50}}', '{}', true, 0);
+    assert r -> 'campaign' = '{"5": {"stars": 1, "bestTime": 50}}', 'campaign reset: ' || r::text;
+    assert (r ->> 'resets')::int = 1, 'reset counted: ' || r::text;
+    assert (select count(*) from jsonb_object_keys(r -> 'community')) = 2, 'clears kept on reset';
+
+    -- another device that synced before the reset doesn't bring the old records back
+    r := public.sync_progress('{"1": {"stars": 3, "bestTime": 14}, "5": {"stars": 3, "bestTime": 10}}',
+                              '{"abcdef00-0000-0000-0000-0000000000ab": 9}', false, 0);
+    assert (r ->> 'replaced')::boolean, 'old device told to replace: ' || r::text;
+    assert r -> 'campaign' = '{"5": {"stars": 1, "bestTime": 50}}', 'old records ignored: ' || r::text;
+    assert r -> 'community' -> 'abcdef00-0000-0000-0000-0000000000ab' = '9', 'clears still count: ' || r::text;
+    -- once it has seen the reset (or never synced before) it merges as usual
+    r := public.sync_progress('{"5": {"stars": 3, "bestTime": 10}}', '{}', false, 1);
+    assert not (r ->> 'replaced')::boolean and r -> 'campaign' = '{"5": {"stars": 3, "bestTime": 10}}', 'merged: ' || r::text;
+    r := public.sync_progress('{"6": {"stars": 2, "bestTime": 30}}', '{}');
+    assert not (r ->> 'replaced')::boolean and (select count(*) from jsonb_object_keys(r -> 'campaign')) = 2, 'new device merges: ' || r::text;
+
+    begin
+        perform count(*) from public.campaign_progress;
+        raise exception 'TEST FAILED: progress table readable';
+    exception when insufficient_privilege then null;
+    end;
+    begin
+        insert into public.community_clears (user_id, level_id, best_time)
+        values ('00000000-0000-0000-0000-00000000000b', '10000000-0000-0000-0000-000000000001', 1);
+        raise exception 'TEST FAILED: forged clear';
+    exception when insufficient_privilege then null;
+    end;
+end $$;
+reset role;
+
+select pg_temp.act_as('00000000-0000-0000-0000-00000000000b', 'authenticated');
+do $$ begin
+    assert public.sync_progress() = '{"campaign": {}, "community": {}, "resets": 0, "replaced": false}',
+        'bob does not see carol''s progress';
+end $$;
+reset role;
+
+select pg_temp.act_as(null, 'anon');
+do $$ begin
+    perform public.sync_progress();
+    raise exception 'TEST FAILED: anon saved progress';
+exception when insufficient_privilege then null;
+end $$;
+reset role;
+
 -- Daily publish limit: 20 per player
 select pg_temp.act_as('00000000-0000-0000-0000-00000000000c', 'authenticated');
 do $$ begin
@@ -166,11 +249,19 @@ reset role;
 do $$ begin
     assert (select is_admin from public.profiles where username = 'bob_99'), 'bob promoted';
     assert (select count(*) from public.level_likes) = 0, 'likes removed with the level';
+    assert (select count(*) from public.community_clears
+            where level_id = '10000000-0000-0000-0000-000000000001') = 0, 'clears removed with the level';
+    assert (select count(*) from public.community_clears) = 1, 'other clears kept';
+    assert (select count(*) from public.campaign_resets) = 1, 'carol''s reset count kept';
 end $$;
 
 -- Deleting an account removes its profile, levels and likes
 delete from auth.users where id = '00000000-0000-0000-0000-00000000000c';
 do $$ begin
     assert (select count(*) from public.profiles where username = 'carol') = 0, 'profile removed';
-    assert (select count(*) from public.levels) = 0, 'carol''s levels removed';
+    assert (select count(*) from public.levels where author_id = '00000000-0000-0000-0000-00000000000c') = 0,
+        'carol''s levels removed';
+    assert (select count(*) from public.campaign_progress) = 0, 'carol''s progress removed';
+    assert (select count(*) from public.community_clears) = 0, 'carol''s clears removed';
+    assert (select count(*) from public.campaign_resets) = 0, 'carol''s reset count removed';
 end $$;

@@ -241,8 +241,8 @@ extension L10n {
         t("You're an admin: you can delete any community level.", "Ты администратор: можешь удалять любые уровни сообщества.")
     }
     var accountPitch: String {
-        t("An account lets you publish levels and like other pilots' levels.",
-          "С аккаунтом можно публиковать уровни и ставить лайки уровням других пилотов.")
+        t("An account saves your progress on every device and lets you publish levels and like other pilots' levels.",
+          "Аккаунт сохраняет прогресс на всех устройствах, а ещё с ним можно публиковать уровни и ставить лайки.")
     }
     var checkEmailTitle: String { t("Check your email", "Проверь почту") }
     func codeSentTo(_ email: String) -> String {
@@ -261,6 +261,32 @@ extension L10n {
     }
     var codeResent: String { t("A new code is on its way.", "Новый код уже в пути.") }
     var startOver: String { t("Start over", "Начать заново") }
+    // MARK: - Progress on the account
+
+    func finishedIn(_ seconds: Double) -> String { t("Finished · \(time(seconds))", "Пройден · \(time(seconds))") }
+    var notFinished: String { t("Not finished yet", "Ещё не пройден") }
+    func youFinished(_ seconds: Double) -> String {
+        t("You finished this level · best \(time(seconds))", "Уровень пройден · лучшее время \(time(seconds))")
+    }
+    var youHaventFinished: String { t("You haven't finished this level yet", "Этот уровень ещё не пройден") }
+    func progressSaved(levels: Int, stars: Int) -> String {
+        t("Progress saved to your account: \(levelCount(levels)), \(stars) ★",
+          "Прогресс сохранён в аккаунте: \(levelCount(levels)), \(stars) ★")
+    }
+    var progressSyncing: String { t("Saving your progress to your account…", "Сохраняем прогресс в аккаунте…") }
+    var progressOffline: String {
+        t("Your progress will be saved to your account when you're back online.",
+          "Прогресс сохранится в аккаунте, когда появится интернет.")
+    }
+    var progressUnavailable: String {
+        t("This server can't save progress yet. Its owner needs to run the latest schema.sql.",
+          "Этот сервер пока не сохраняет прогресс. Владельцу нужно запустить свежий schema.sql.")
+    }
+    var resetAlsoAccount: String {
+        t("You're signed in, so they will be erased from your account too.",
+          "Они удалятся и из твоего аккаунта.")
+    }
+
     var serverTitle: String { t("Server", "Сервер") }
     var serverURL: String { t("Project URL (https://…supabase.co)", "Адрес проекта (https://…supabase.co)") }
     var serverKey: String { t("Public key (anon or publishable)", "Публичный ключ (anon или publishable)") }

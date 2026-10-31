@@ -76,4 +76,34 @@ export class Progress {
     this.records = {};
     storage.set(RECORDS, this.records);
   }
+
+  /**
+   * Adds progress saved to the account: the best of both for every level of this game. Returns true if anything changed.
+   * replace takes the account's as it is (its campaign was reset on another device).
+   */
+  mergeRecords(incoming, replace = false) {
+    const known = new Set(this.levels.map((l) => String(l.id)));
+    const filtered = {};
+    for (const [id, r] of Object.entries(incoming || {})) if (known.has(id)) filtered[id] = r;
+    const merged = replace ? mergeRecords({}, filtered) : mergeRecords(this.records, filtered);
+    if (sameRecords(merged, this.records)) return false;
+    this.records = merged;
+    storage.set(RECORDS, this.records);
+    return true;
+  }
+}
+
+/** The better of both for every level: the most stars and the fastest time. */
+export function mergeRecords(a, b) {
+  const out = { ...a };
+  for (const [id, r] of Object.entries(b || {})) {
+    const old = out[id];
+    out[id] = old ? { stars: Math.max(old.stars, r.stars), bestTime: Math.min(old.bestTime, r.bestTime) } : { stars: r.stars, bestTime: r.bestTime };
+  }
+  return out;
+}
+
+function sameRecords(a, b) {
+  const ka = Object.keys(a), kb = Object.keys(b);
+  return ka.length === kb.length && ka.every((k) => b[k] && b[k].stars === a[k].stars && b[k].bestTime === a[k].bestTime);
 }

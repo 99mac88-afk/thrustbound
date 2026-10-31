@@ -110,6 +110,7 @@ private struct EditorScreen: View {
                 .environmentObject(app)
                 .environmentObject(account)
                 .environmentObject(community)
+                .environmentObject(app.progress)
         }
         .alert(alertTitle, isPresented: Binding(get: { alert != nil }, set: { if !$0 { alert = nil } }), presenting: alert) { a in
             switch a {

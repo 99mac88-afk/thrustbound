@@ -65,6 +65,18 @@ else:
     problems.append("username_available() is missing or not allowed: run backend/schema.sql")
     print(f"FAIL username_available -> {st} {body}")
 
+# Signed out, sync_progress must exist but refuse (only accounts save progress).
+st, _, body = get("/rest/v1/rpc/sync_progress", "POST", {"p_campaign": {}, "p_community": {}, "p_reset_campaign": False})
+code = body.get("code") if isinstance(body, dict) else None
+if st in (401, 403) and code == "42501":
+    print("ok   sync_progress() is installed (progress is saved to accounts)")
+elif st == 404 or code == "PGRST202":
+    problems.append("sync_progress() is missing: run the latest backend/schema.sql so progress can be saved to accounts")
+    print(f"FAIL sync_progress -> {st} {body}")
+else:
+    problems.append("sync_progress() answered unexpectedly")
+    print(f"FAIL sync_progress -> {st} {body}")
+
 st, _, body = get("/rest/v1/level_likes?select=level_id&limit=1")
 if st in (401, 403) or (st == 200 and body == []):
     print("ok   likes are private to their owner")

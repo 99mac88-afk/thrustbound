@@ -247,6 +247,11 @@ input { font: inherit; -webkit-user-select: text; user-select: text; }
 .level-row .main { flex: 1; min-width: 0; }
 .level-row .name { font-size: 17px; font-weight: 900; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .level-row .meta { font-size: 12px; font-weight: 600; color: rgba(255, 255, 255, .55); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.level-row .finished { display: flex; align-items: center; gap: 4px; margin-top: 4px; font-size: 12px; font-weight: 800; color: var(--green); white-space: nowrap; overflow: hidden; }
+.level-row .finished span { overflow: hidden; text-overflow: ellipsis; }
+.level-row .finished.no { color: rgba(255, 255, 255, .4); font-weight: 600; }
+.finished-pill { font-size: 14px; font-weight: 800; color: var(--green); background: rgba(68, 255, 136, .1); }
+.finished-pill.no { color: rgba(255, 255, 255, .6); background: rgba(255, 255, 255, .08); font-weight: 700; }
 .level-row .counts { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; font-size: 13px; font-variant-numeric: tabular-nums; }
 .level-row .counts span { display: inline-flex; align-items: center; gap: 4px; }
 .tag-mini { display: inline-block; margin-left: 6px; padding: 2px 5px; border-radius: 6px; background: var(--cyan); color: #000; font-size: 9px; font-weight: 900; vertical-align: middle; }

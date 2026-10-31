@@ -26,6 +26,9 @@ export class CommunityScreen {
         this.app.community.reload(this.tab);
       }
     });
+    // Finished markers change when a sync brings levels finished on another device.
+    this.offSync = this.app.sync.on(refresh);
+    this.app.sync.syncIfStale();
     this.off = onAction(root, (act, el) => this.action(act, el));
     this.onScroll = () => {
       const sc = this.root.querySelector('.scroll');
@@ -38,6 +41,7 @@ export class CommunityScreen {
   unmount() {
     this.offStore();
     this.offAccount();
+    this.offSync();
     this.off();
     this.root.removeEventListener('scroll', this.onScroll, true);
   }
@@ -89,9 +93,12 @@ export class CommunityScreen {
     }
     setHTML(slot, html`${levels.map((l) => {
       const liked = c.liked.has(l.id);
+      const best = app.sync.clearTime(l.id);
       return html`<button class="level-row" data-act="open" data-id="${l.id}">
         <div class="main"><div class="name">${l.title}${l.authorID === a.userID ? html`<span class="tag-mini">${s.yours}</span>` : ''}</div>
-          <div class="meta">${s.byAuthor(l.author)}${l.createdAt ? ` · ${s.ago(l.createdAt)}` : ''}</div></div>
+          <div class="meta">${s.byAuthor(l.author)}${l.createdAt ? ` · ${s.ago(l.createdAt)}` : ''}</div>
+          ${best === null ? html`<div class="finished no">${raw(icon('dashed', 13))}<span>${s.notFinished}</span></div>`
+            : html`<div class="finished">${raw(icon('seal', 13))}<span>${s.finishedIn(best)}</span></div>`}</div>
         <div class="counts"><span style="color:${raw(liked ? 'var(--red)' : '#fff')}">${raw(icon(liked ? 'heart' : 'heartOutline', 14))}${l.likes}</span>
           <span style="color:rgba(255,255,255,.7)">${raw(icon('eye', 14))}${l.views}</span></div>
         <span style="color:rgba(255,255,255,.35)">${raw(icon('back', 13, '').replace('<svg', '<svg style="transform:scaleX(-1)"'))}</span>
@@ -128,9 +135,12 @@ function openDetail(app, level) {
   let busy = false;
   let errorText = '';
   sheet((el, close) => {
-    const off = app.community.on(() => { if (el.isConnected) render(); else off(); });
+    const offStore = app.community.on(() => { if (el.isConnected) render(); else off(); });
+    const offSync = app.sync.on(() => { if (el.isConnected) render(); else off(); });
+    const off = () => { offStore(); offSync(); };
     const render = () => {
       const cur = app.community.find(level.id) || level;
+      const best = app.sync.clearTime(cur.id);
       const mine = cur.authorID === app.account.userID;
       const adminDelete = app.account.isAdmin && !mine;
       setHTML(el, html`
@@ -143,6 +153,8 @@ function openDetail(app, level) {
             <span class="pill" style="background:rgba(59,227,255,.15)">${raw(icon('eye', 15))}${s.viewsCount(cur.views)}</span>
             <span class="pill" style="background:rgba(255,46,77,.15)">${raw(icon('heart', 15))}${s.likesCount(cur.likes)}</span>
           </div>
+          ${best === null ? html`<span class="pill finished-pill no">${raw(icon('dashed', 15))}${s.youHaventFinished}</span>`
+            : html`<span class="pill finished-pill">${raw(icon('seal', 15))}${s.youFinished(best)}</span>`}
           <button class="btn primary ${busy ? 'disabled' : ''}" data-act="play" style="height:60px">${busy ? html`<span class="spinner" style="width:22px;height:22px;margin:0"></span>` : raw(icon('play', 18))}<span>${s.play}</span></button>
           <div class="like-slot"></div>
           ${errorText ? html`<div class="error-text">${errorText}</div>` : ''}
@@ -242,9 +254,23 @@ export function openAccount(app) {
   const s = app.s;
   const a = app.account;
   const state = { creating: true, username: '', email: '', password: '', code: '', busy: false, error: '', info: '', showServer: !a.isConfigured, serverURL: a.usingCustomServer ? a.config.url : '', serverKey: a.usingCustomServer ? a.config.anonKey : '', serverNote: '' };
-  if (a.isSignedIn) a.refreshProfile();
+  if (a.isSignedIn) {
+    a.refreshProfile();
+    app.sync.syncIfStale();
+  }
   sheet((el, close) => {
-    const off = a.on(() => { if (el.isConnected) render(); else off(); });
+    const offAccount = a.on(() => { if (el.isConnected) render(); else off(); });
+    const offSync = app.sync.on(() => { if (el.isConnected) render(); else off(); });
+    const off = () => { offAccount(); offSync(); };
+    /** Whether the player's progress made it to the account. */
+    const progressNote = () => {
+      const st = app.sync.state;
+      const [text, ic, color, bg] = st === 'synced' ? [s.progressSaved(app.progress.completedCount, app.progress.totalStars), 'cloudCheck', 'green', 'rgba(68,255,136,.1)']
+        : st === 'failed' ? [s.progressOffline, 'wifiOff', 'gold', 'rgba(255,225,77,.1)']
+          : st === 'unavailable' ? [s.progressUnavailable, 'warning', 'gold', 'rgba(255,225,77,.1)']
+            : [s.progressSyncing, 'upload', 'cyan', 'rgba(59,227,255,.1)'];
+      return html`<div class="note progress-note" style="background:${bg}">${raw(icon(ic, 18, color))}<span>${text}</span></div>`;
+    };
     const field = (name, label, type, foot, autocomplete) => html`<div class="field"><label>${label}</label>
       <input name="${name}" type="${type}" value="${state[name]}" autocomplete="${autocomplete}" autocapitalize="off" autocorrect="off" spellcheck="false">
       ${foot ? html`<div class="foot">${foot}</div>` : ''}</div>`;
@@ -262,6 +288,7 @@ export function openAccount(app) {
           <div style="display:flex;gap:14px;align-items:center"><span class="cyan">${raw(icon('person', 44))}</span>
             <div style="min-width:0"><div style="font-size:22px;font-weight:900">${a.profile ? a.profile.username : '…'} ${a.isAdmin ? html`<span class="badge">${s.adminBadge}</span>` : ''}</div>
             ${a.session.email ? html`<div class="muted small-text">${a.session.email}</div>` : ''}</div></div>
+          ${progressNote()}
           ${a.isAdmin ? html`<div class="note" style="background:rgba(255,225,77,.1)">${raw(icon('shield', 18, 'gold'))}<span>${s.adminNote}</span></div>` : ''}
           <button class="btn" data-act="signout">${raw(icon('signout', 17))}<span>${s.signOut}</span></button></div>`;
       } else if (a.pending) {

@@ -123,6 +123,11 @@ export class L10n {
       `Мы отправили код подтверждения на ${email}. Введи его здесь, чтобы завершить создание аккаунта.`);
   }
   resendIn(n) { return this.t(`Send a new code in ${n} s`, `Новый код — через ${n} с`); }
+  finishedIn(seconds) { return this.t(`Finished · ${this.time(seconds)}`, `Пройден · ${this.time(seconds)}`); }
+  youFinished(seconds) { return this.t(`You finished this level · best ${this.time(seconds)}`, `Уровень пройден · лучшее время ${this.time(seconds)}`); }
+  progressSaved(levels, stars) {
+    return this.t(`Progress saved to your account: ${this.levelCount(levels)}, ${stars} ★`, `Прогресс сохранён в аккаунте: ${this.levelCount(levels)}, ${stars} ★`);
+  }
 
   onlineError(e) {
     const code = e && e.code;

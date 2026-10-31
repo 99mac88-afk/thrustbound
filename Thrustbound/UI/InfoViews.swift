@@ -161,7 +161,7 @@ struct SettingsView: View {
             Button(app.s.reset, role: .destructive) { app.resetProgress() }
             Button(app.s.cancel, role: .cancel) {}
         } message: {
-            Text(app.s.resetConfirmMessage)
+            Text(app.account.isSignedIn ? app.s.resetConfirmMessage + " " + app.s.resetAlsoAccount : app.s.resetConfirmMessage)
         }
     }
 

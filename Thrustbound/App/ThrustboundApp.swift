@@ -11,6 +11,7 @@ struct ThrustboundApp: App {
                 .environmentObject(app.maker)
                 .environmentObject(app.account)
                 .environmentObject(app.community)
+                .environmentObject(app.progress)
                 .preferredColorScheme(.dark)
                 .onAppear { SoundManager.shared.prepare() }
         }
@@ -19,6 +20,7 @@ struct ThrustboundApp: App {
 
 struct RootView: View {
     @EnvironmentObject var app: AppModel
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         ZStack {
@@ -56,6 +58,10 @@ struct RootView: View {
                         .transition(.opacity)
                 }
             }
+        }
+        .onChange(of: scenePhase) { phase in
+            // Pick up progress made on other devices when the game comes back.
+            if phase == .active { app.progress.syncIfStale() }
         }
     }
 }
