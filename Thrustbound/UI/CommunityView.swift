@@ -491,7 +491,7 @@ struct LikeButton: View {
                 .environmentObject(app)
                 .environmentObject(account)
                 .environmentObject(community)
-                .environmentObject(progress)
+                .environmentObject(app.progress)
         }
     }
 }
